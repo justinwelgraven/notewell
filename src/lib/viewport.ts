@@ -87,6 +87,31 @@ function fullHeight(): number {
   return r.portrait ? Math.max(...values) : Math.min(...values);
 }
 
+/** Scrolls the note so the text cursor is visible (with a little room around it). */
+function keepCaretVisible() {
+  const el = document.activeElement as HTMLElement | null;
+  const sel = window.getSelection();
+  if (!el?.isContentEditable || !sel?.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  let rect: DOMRect | undefined = range.getClientRects()[0];
+  if (!rect || (!rect.height && !rect.top)) {
+    // Cursor on an empty line: use that line's box instead.
+    const node = range.startContainer;
+    const host = (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement) as Element | null;
+    rect = host?.getBoundingClientRect();
+  }
+  if (!rect) return;
+  let scroller: HTMLElement | null = el;
+  while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY))) {
+    scroller = scroller.parentElement;
+  }
+  if (!scroller) return;
+  const box = scroller.getBoundingClientRect();
+  const room = 32;
+  if (rect.bottom > box.bottom - room) scroller.scrollTop += rect.bottom - box.bottom + room;
+  else if (rect.top < box.top + room) scroller.scrollTop -= box.top + room - rect.top;
+}
+
 export function trackVisibleViewport() {
   const root = document.documentElement;
   const vv = window.visualViewport;
@@ -107,7 +132,11 @@ export function trackVisibleViewport() {
       // Always compare with what's actually set, so any wrong state gets corrected.
       const h = `${Math.round(height)}px`;
       const t = `${Math.round(top)}px`;
-      if (root.style.getPropertyValue("--app-height") !== h) root.style.setProperty("--app-height", h);
+      const changed = root.style.getPropertyValue("--app-height") !== h;
+      if (changed) root.style.setProperty("--app-height", h);
+      // The note area just got shorter (keyboard opened / resized): bring the cursor back into view,
+      // otherwise it sits hidden under the keyboard until you type.
+      if (keyboard && changed) requestAnimationFrame(keepCaretVisible);
       if (root.style.getPropertyValue("--app-top") !== t) root.style.setProperty("--app-top", t);
       if (root.classList.contains("keyboard-open") !== keyboard) root.classList.toggle("keyboard-open", keyboard);
       // Never let the page itself stay scrolled: everything scrolls inside the app.
