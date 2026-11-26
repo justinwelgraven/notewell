@@ -1,0 +1,18 @@
+# Netlify publishes the web version (iPhone) automatically on every push to GitHub.
+[build]
+  command = "npm run build:web"
+  publish = "web"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Always fetch the latest service worker and page, so updates arrive straight away.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"

@@ -1,0 +1,51 @@
+{
+    "$schema":  "https://schema.tauri.app/config/2",
+    "productName":  "Notewell",
+    "version":  "0.1.0",
+    "identifier":  "com.notewell.desktop",
+    "build":  {
+                  "beforeDevCommand":  "npm run dev",
+                  "devUrl":  "http://localhost:1420",
+                  "beforeBuildCommand":  "npm run build",
+                  "frontendDist":  "../dist"
+              },
+    "app":  {
+                "windows":  [
+                                {
+                                    "title":  "Notewell",
+                                    "width":  1320,
+                                    "height":  840,
+                                    "minWidth":  960,
+                                    "minHeight":  560
+                                }
+                            ],
+                "security":  {
+                                 "csp":  null
+                             }
+            },
+    "bundle":  {
+                   "active":  true,
+                   "targets":  [
+                                   "nsis"
+                               ],
+                   "icon":  [
+                                "icons/32x32.png",
+                                "icons/128x128.png",
+                                "icons/128x128@2x.png",
+                                "icons/icon.icns",
+                                "icons/icon.ico"
+                            ],
+                   "createUpdaterArtifacts":  true
+               },
+    "plugins":  {
+                    "updater":  {
+                                    "pubkey":  "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIwQ0UyM0EwQjdBQUZBQ0QKUldUTitxcTNvQ1BPc1A4dGhVU3gyT2lLamYwNjBFWVVuY1pxTEZtM1FodC9ZcTFuWHlJZE1rbjAK",
+                                    "endpoints":  [
+                                                      "https://github.com/GITHUB_USER/notewell/releases/latest/download/latest.json"
+                                                  ],
+                                    "windows":  {
+                                                    "installMode":  "passive"
+                                                }
+                                }
+                }
+}
