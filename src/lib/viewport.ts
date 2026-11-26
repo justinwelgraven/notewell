@@ -7,9 +7,10 @@
  * field actually has focus; otherwise the best full-height reading is used. Re-checked every second.
  * Results go to --app-height / --app-top (used by .app in styles.css) and html.keyboard-open.
  *
- * iPhone Duo, Home Screen app: after rotating, iOS reports a window 82pt too short in every JS reading
- * (the status-bar inset subtracted twice), but CSS 100lvh / 100vh keep the real height — so lvh is one
- * of the candidates (see fullHeight).
+ * iPhone Duo, Home Screen app: after rotating, iOS shrank the app's window by 82pt (the status-bar
+ * inset subtracted a second time) and clips anything drawn below it — not fixable from the page.
+ * index.html therefore uses a solid ("black") status bar instead of "black-translucent", so the app
+ * starts below the status bar and there is no inset for iOS to miscount.
  */
 import { useEffect, useState } from "react";
 
@@ -77,10 +78,9 @@ export function extraReadings() {
  */
 function fullHeight(): number {
   const r = heightReadings();
-  // Home Screen app: CSS's "large viewport height" (100lvh) stays correct after rotating on the
-  // iPhone Duo (device readings: lvh 951 while inner/client/visual were stuck at 869), so include it.
-  const lvh = isHomeScreen() ? cssLength("100lvh") : null;
-  const values = [lvh, r.visual, r.inner, r.client].filter((v): v is number => typeof v === "number" && v > 100);
+  // Note: on the iPhone Duo, CSS 100lvh can report the full screen (951) while iOS only shows 869 of
+  // the window, so sizing to lvh hides the bottom of the app. Use the window readings only.
+  const values = [r.visual, r.inner, r.client].filter((v): v is number => typeof v === "number" && v > 100);
   if (!values.length) return window.innerHeight;
   const fitting = values.filter((v) => (r.portrait ? v > r.width : v < r.width));
   if (fitting.length) return Math.max(...fitting);
