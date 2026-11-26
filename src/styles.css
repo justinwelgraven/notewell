@@ -615,6 +615,27 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
 .app.is-compact .dropdown-panel { max-width: calc(100vw - 24px); }
 .app.is-compact .toast { bottom: calc(96px + env(safe-area-inset-bottom)); }
 
+/* Web on iPhone: the app is pinned to the *visible* screen area (src/lib/viewport.ts), so the
+   keyboard, rotating and folding never push the toolbar away or cut off the bottom. */
+html.vv-tracked, html.vv-tracked body { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+html.vv-tracked #root { height: auto; }
+html.vv-tracked .app {
+  position: fixed; left: 0; right: 0;
+  top: var(--app-top, 0px);
+  height: var(--app-height, 100dvh);
+}
+html.vv-tracked .app.is-compact .sidebar,
+html.vv-tracked .drawer-backdrop,
+html.vv-tracked .modal-backdrop {
+  top: var(--app-top, 0px); bottom: auto; height: var(--app-height, 100dvh);
+}
+/* Keyboard open: give the note all the room (the tag bar stays while you're typing a tag). */
+html.keyboard-open .app.is-compact .ep-footer:not(:has(.tag-input:focus)) { display: none; }
+html.keyboard-open .app.is-compact .ep-footer { padding-bottom: 6px; }
+html.keyboard-open .fab { display: none; }
+html.keyboard-open .app.is-compact .nl-items { padding-bottom: 16px; }
+html.keyboard-open .app.is-compact .ep-doc { padding-bottom: 24px; }
+
 /* Phone (and iPhone Duo folded): one screen at a time */
 .app.is-phone .notelist { flex: 1; width: 100%; border-right: 0; }
 .app.is-phone .ep-notebook { max-width: 46vw; }
