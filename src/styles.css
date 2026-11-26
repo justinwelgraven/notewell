@@ -804,7 +804,7 @@ html.vv-tracked .status-scrim {
 .app.is-phone .ep-doc { padding-left: calc(18px + env(safe-area-inset-left)); }
 html.keyboard-open .app.is-compact .kb-bar { padding-left: calc(6px + env(safe-area-inset-left)); padding-right: calc(4px + env(safe-area-inset-right)); }
 /* Touch targets at least 44 pt (Apple's minimum). */
-.app.is-compact .tb-btn { min-width: 40px; height: 44px; }
+.app.is-compact .tb-btn { min-width: 36px; height: 44px; }
 .app.is-compact .tb-insert, .app.is-compact .tb-select { height: 44px; }
 .app.is-compact .ep-icon-btn, .app.is-compact .nl-tool { min-width: 44px; height: 44px; }
 .app.is-compact .ep-back { min-height: 44px; }

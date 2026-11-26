@@ -58,8 +58,11 @@ User-facing docs, setup and build steps: **README.md**.
 - **Open issue (iPhone Duo, Home Screen app):** after rotating while unfolded, iOS shrinks the app's window by 82pt (= safe-area top,
   subtracted twice) and clips anything below it: an empty band at the bottom. Readings in that state: inner/client/visual/svh/dvh 869,
   vh/lvh 951, screen 466×678, safe top 82 / bottom 34. Tried and **didn't work**: sizing to lvh (content clipped), auto-reload (still
-  stale + flashing), remembered heights. Latest attempt: status bar `black` instead of `black-translucent` (index.html) — awaiting
-  Justin's test (may need re-adding the Home Screen icon). Fold/unfold or reopening resets it.
+  stale + flashing), remembered heights, status bar `black` (the Duo then put the app's top under the status-bar icons with inset 0).
+  Now: `black-translucent` + safe-area insets + `.status-scrim` (dark strip behind the status bar). Fold/unfold or reopening resets it.
+- Sync merges notes edited on two devices (`src/sync/threeWay.ts`, base = last-synced Dropbox revision); pulls immediately on
+  visibility/focus/online. Merge cases were tested in the browser, not yet with two real devices.
+- iPhone touch targets: 44 pt height in compact layouts (toolbar buttons stay 36 wide so the toolbar keeps to two rows on a phone).
 - GitHub's unauthenticated API is rate-limited (60/h): check releases via `releases/latest/download/latest.json` and the live site
   instead of polling `api.github.com`.
 
