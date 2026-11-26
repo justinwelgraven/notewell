@@ -215,6 +215,8 @@ fn show_quick_note(app: &AppHandle) {
         .inner_size(QUICK_W, QUICK_H)
         .min_inner_size(340.0, 300.0)
         .always_on_top(true)
+        // Mac: the first click on the window already places the cursor (not just brings it forward).
+        .accept_first_mouse(true)
         .focused(true);
     // Bottom-right corner of the screen, like a sticky note.
     if let Ok(Some(monitor)) = app.primary_monitor() {

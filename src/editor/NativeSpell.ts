@@ -208,10 +208,34 @@ export const NativeSpell = Extension.create({
           let busy = false;
           let alive = true;
           let enabled: boolean | null = null;
+          let lastKey = "";
+          // Never redraw underlines while a mouse button is down: rebuilding the text under the pointer
+          // mid-click made the click miss (no cursor; you had to click again). Redraw right after release.
+          let pointerDown = false;
+          let redrawWanted = false;
+          const onDown = () => (pointerDown = true);
+          const onUp = () => {
+            pointerDown = false;
+            if (redrawWanted) window.setTimeout(redraw, 0);
+          };
+          view.dom.addEventListener("mousedown", onDown);
+          view.dom.addEventListener("touchstart", onDown, { passive: true });
+          window.addEventListener("mouseup", onUp, true);
+          window.addEventListener("touchend", onUp, true);
 
           const redraw = () => {
             if (!alive) return;
-            view.dispatch(view.state.tr.setMeta(key, buildDecorations(view.state, typing)).setMeta("addToHistory", false));
+            if (pointerDown || view.composing) {
+              redrawWanted = true;
+              return;
+            }
+            redrawWanted = false;
+            const decos = buildDecorations(view.state, typing);
+            // Only touch the editor when the underlines actually change.
+            const key2 = decos.find().map((d) => `${d.from}-${d.to}`).join(",");
+            if (key2 === lastKey && key.getState(view.state)?.find().length === decos.find().length) return;
+            lastKey = key2;
+            view.dispatch(view.state.tr.setMeta(key, decos).setMeta("addToHistory", false));
           };
           const run = async () => {
             if (!alive || busy || enabled === false) return;
@@ -261,6 +285,10 @@ export const NativeSpell = Extension.create({
             destroy: () => {
               alive = false;
               window.clearTimeout(timer);
+              view.dom.removeEventListener("mousedown", onDown);
+              view.dom.removeEventListener("touchstart", onDown);
+              window.removeEventListener("mouseup", onUp, true);
+              window.removeEventListener("touchend", onUp, true);
               listeners.delete(onReset);
               closeMenu();
             },

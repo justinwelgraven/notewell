@@ -282,10 +282,42 @@ export default function EditorPane(p: Props) {
       openExternal(a.href);
       return;
     }
-    // Clicking the empty space below the text puts the cursor at the end, like Evernote.
-    if (editor && !trashed && (e.target as HTMLElement).classList.contains("ep-scroll")) {
-      editor.chain().focus("end").run();
+  };
+
+  /**
+   * A click anywhere on the note page puts the cursor in the text, like Evernote: in the margins it
+   * goes to the nearest spot on that line, below the text to the end. (Before, only clicks right on
+   * the text worked — clicking beside it gave no cursor, so it took several tries.)
+   */
+  const handlePageMouseDown = (e: React.MouseEvent) => {
+    if (!editor || trashed || e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest(".ProseMirror, .ep-title, button, a, input, textarea, .backlinks, .node-actions")) return;
+    const rect = editor.view.dom.getBoundingClientRect();
+    e.preventDefault();
+    // Beside the title: into the title.
+    const title = titleRef.current?.getBoundingClientRect();
+    if (title && e.clientY >= title.top && e.clientY <= title.bottom && titleRef.current) {
+      titleRef.current.focus();
+      const end = titleRef.current.value.length;
+      titleRef.current.setSelectionRange(end, end);
+      return;
     }
+    // Focus right away (the editor's own focus command waits a frame, which could lose the click).
+    const place = (pos: number) => {
+      editor.view.focus();
+      editor.commands.setTextSelection(pos);
+    };
+    const end = () => {
+      editor.view.focus();
+      editor.commands.focus("end");
+    };
+    if (e.clientY > rect.bottom) return end();
+    const left = Math.min(Math.max(e.clientX, rect.left + 2), rect.right - 2);
+    const top = Math.min(Math.max(e.clientY, rect.top + 2), rect.bottom - 2);
+    const at = editor.view.posAtCoords({ left, top });
+    if (at) place(at.pos);
+    else end();
   };
 
   const currentLink = editor?.getAttributes("link").href as string | undefined;
@@ -414,7 +446,7 @@ export default function EditorPane(p: Props) {
         }}
       />
 
-      <div className="ep-scroll" onClick={handleBodyClick}>
+      <div className="ep-scroll" onClick={handleBodyClick} onMouseDown={handlePageMouseDown}>
         <div className="ep-doc">
           <textarea
             ref={titleRef}
