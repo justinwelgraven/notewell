@@ -1,0 +1,5 @@
+# Same line endings on Windows and Mac (the project folder is shared between them through Dropbox).
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
