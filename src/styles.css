@@ -822,16 +822,13 @@ html.keyboard-open .app.is-compact .kb-bar { padding-left: calc(6px + env(safe-a
 .app.is-compact .modal { max-height: calc(var(--app-height, 100dvh) - env(safe-area-inset-top) - 24px); overflow-y: auto; }
 
 /* iPhone Duo folded upright (Home Screen app): the clock / network icons are a vertical strip in the
-   top-right corner (about 75 pt wide, 165 pt tall) that iOS doesn't report as unsafe; html.side-status
-   comes from src/lib/viewport.ts. Keep buttons out of that corner and start the note list below it
-   (an iOS-style large-title header). */
-html.side-status { --side-w: 84px; --side-h: 172px; }
-html.side-status .app.is-phone .nl-header {
-  min-height: var(--side-h); box-sizing: border-box;
-  display: flex; flex-direction: column; justify-content: flex-end;
-}
+   right edge (about 75 pt wide, roughly 75–160 pt from the top) that iOS doesn't report as unsafe;
+   html.side-status comes from src/lib/viewport.ts. Like a sideways iPhone's side safe area: the note
+   list keeps a clear column on the right, and the note's top bars keep their buttons out of it. */
+html.side-status { --side-w: 84px; }
 html.side-status .app.is-phone .nl-title,
 html.side-status .app.is-phone .nl-subbar,
+html.side-status .app.is-phone .nl-card,
 html.side-status .app.is-phone .ep-topbar,
 html.side-status .app.is-phone .toolbar { padding-right: var(--side-w); }
 

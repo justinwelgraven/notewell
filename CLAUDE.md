@@ -60,9 +60,9 @@ User-facing docs, setup and build steps: **README.md**.
   vh/lvh 951, screen 466×678, safe top 82 / bottom 34. Tried and **didn't work**: sizing to lvh (content clipped), auto-reload (still
   stale + flashing), remembered heights, status bar `black` (the Duo then put the app's top under the status-bar icons with inset 0).
   Now: `black-translucent` + safe-area insets + `.status-scrim` (dark strip behind the status bar). Fold/unfold or reopening resets it.
-- iPhone Duo **folded upright**: the status bar is a vertical strip in the top-right corner (~75 pt wide, ~165 pt tall) and iOS
-  reports no inset. Detected as "Home Screen app + upright + touch + safe top 0" → `html.side-status` (viewport.ts); CSS keeps
-  that corner clear (list header becomes a tall large-title header; topbar/toolbar right padding).
+- iPhone Duo **folded upright**: the status bar is a vertical strip on the right (~75 pt wide, ~75–160 pt from the top) and iOS
+  reports no inset. Detected as "Home Screen app + upright + touch + safe top 0" → `html.side-status` (viewport.ts); CSS gives
+  the note list a clear right column and the note's topbar/toolbar right padding. (A tall header instead = big gap on top: rejected.)
 - Sync merges notes edited on two devices (`src/sync/threeWay.ts`, base = last-synced Dropbox revision); pulls immediately on
   visibility/focus/online. Merge cases were tested in the browser, not yet with two real devices.
 - iPhone touch targets: 44 pt height in compact layouts (toolbar buttons stay 36 wide so the toolbar keeps to two rows on a phone).
