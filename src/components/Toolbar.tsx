@@ -3,15 +3,13 @@ import { isMac, kbd } from "../lib/keys";
 import { Icon } from "./Icon";
 import { Dropdown, MenuItem } from "./Menu";
 
-const FONTS = [
-  { label: "Sans Serif", value: null },
-  { label: "Serif", value: "Georgia, 'Times New Roman', serif" },
-  { label: "Slab Serif", value: "Rockwell, 'Roboto Slab', 'Courier New', serif" },
-  { label: "Monospace", value: "Consolas, 'SF Mono', Menlo, monospace" },
-  { label: "Handwritten", value: "'Segoe Print', 'Bradley Hand', cursive" },
+/** Per-selection text size (in More). The default size for all notes is in "Text size & margins". */
+const SIZE_CHOICES: [string, number | null][] = [
+  ["Small", 13],
+  ["Normal", null],
+  ["Large", 20],
+  ["Huge", 28],
 ];
-
-const SIZES = [10, 12, 14, 16, 18, 20, 24, 30, 36];
 
 const TEXT_COLORS = [
   { name: "Default", value: null },
@@ -62,7 +60,6 @@ export default function Toolbar({ editor, onLink, onInsertUrl }: Props) {
         h3: e.isActive("heading", { level: 3 }),
         alignCenter: e.isActive({ textAlign: "center" }),
         alignRight: e.isActive({ textAlign: "right" }),
-        fontFamily: (ts.fontFamily as string | undefined) ?? null,
         fontSize: (ts.fontSize as string | undefined) ?? null,
         color: (ts.color as string | undefined) ?? null,
         canUndo: e.can().undo(),
@@ -75,9 +72,7 @@ export default function Toolbar({ editor, onLink, onInsertUrl }: Props) {
 
   const c = () => editor.chain().focus();
   const styleLabel = s.h1 ? "Large header" : s.h2 ? "Medium header" : s.h3 ? "Small header" : s.codeBlock ? "Code block" : "Normal text";
-  const fontLabel = FONTS.find((f) => f.value === s.fontFamily)?.label ?? "Sans Serif";
-  const sizeLabel = s.fontSize ? parseInt(s.fontSize) : 16;
-  const alignIcon = s.alignCenter ? "alignCenter" : s.alignRight ? "alignRight" : "alignLeft";
+  const sizeLabel = s.fontSize ? parseInt(s.fontSize) : null;
 
   const Btn = ({ icon, title, active, onClick, disabled }: { icon: string; title: string; active?: boolean; onClick: () => void; disabled?: boolean }) => (
     <button
@@ -148,42 +143,6 @@ export default function Toolbar({ editor, onLink, onInsertUrl }: Props) {
         )}
       </Dropdown>
 
-      <Dropdown trigger={<><span className="tb-select-label w-font">{fontLabel}</span><Icon name="chevronDown" size={12} /></>} triggerClassName="tb-select" title="Font">
-        {(close) =>
-          FONTS.map((f) => (
-            <MenuItem
-              key={f.label}
-              active={fontLabel === f.label}
-              onSelect={() => {
-                close();
-                if (f.value) c().setFontFamily(f.value).run();
-                else c().unsetFontFamily().run();
-              }}
-            >
-              <span style={{ fontFamily: f.value ?? undefined }}>{f.label}</span>
-            </MenuItem>
-          ))
-        }
-      </Dropdown>
-
-      <Dropdown trigger={<><span className="tb-select-label w-size">{sizeLabel}</span><Icon name="chevronDown" size={12} /></>} triggerClassName="tb-select" title="Font size">
-        {(close) =>
-          SIZES.map((sz) => (
-            <MenuItem
-              key={sz}
-              active={sizeLabel === sz}
-              onSelect={() => {
-                close();
-                if (sz === 16) c().unsetFontSize().run();
-                else c().setFontSize(`${sz}px`).run();
-              }}
-            >
-              {sz}
-            </MenuItem>
-          ))
-        }
-      </Dropdown>
-
       <span className="tb-sep" />
 
       <Dropdown
@@ -251,36 +210,50 @@ export default function Toolbar({ editor, onLink, onInsertUrl }: Props) {
       <span className="tb-sep" />
       <Btn icon="link" title={`Link (${kbd("Ctrl+K")})`} active={s.link} onClick={onLink} />
 
-      <Dropdown trigger={<><Icon name={alignIcon} size={18} /><Icon name="chevronDown" size={12} /></>} title="Alignment" triggerClassName="tb-btn tb-btn-wide">
-        {(close) => (
-          <div className="tb-row">
-            <Btn icon="alignLeft" title="Align left" onClick={() => { close(); c().setTextAlign("left").run(); }} />
-            <Btn icon="alignCenter" title="Align center" active={s.alignCenter} onClick={() => { close(); c().setTextAlign("center").run(); }} />
-            <Btn icon="alignRight" title="Align right" active={s.alignRight} onClick={() => { close(); c().setTextAlign("right").run(); }} />
-          </div>
-        )}
-      </Dropdown>
-
-      <Btn
-        icon="indent"
-        title="Indent"
-        disabled={!s.canSink}
-        onClick={() => (editor.isActive("taskItem") ? c().sinkListItem("taskItem").run() : c().sinkListItem("listItem").run())}
-      />
-      <Btn
-        icon="outdent"
-        title="Outdent"
-        disabled={!s.canLift}
-        onClick={() => (editor.isActive("taskItem") ? c().liftListItem("taskItem").run() : c().liftListItem("listItem").run())}
-      />
-
       <Dropdown trigger={<Icon name="more" size={18} />} title="More formatting" align="right">
         {(close) => (
-          <>
-            <MenuItem active={s.strike} onSelect={() => { close(); c().toggleStrike().run(); }}>
+          <div className="tb-more">
+            <div className="menu-heading">Text size</div>
+            <div className="tb-chips">
+              {SIZE_CHOICES.map(([label, px]) => (
+                <button
+                  key={label}
+                  className={(px === null ? !s.fontSize : sizeLabel === px) ? "is-active" : ""}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    close();
+                    if (px === null) c().unsetFontSize().run();
+                    else c().setFontSize(`${px}px`).run();
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="menu-heading">Alignment &amp; indent</div>
+            <div className="tb-row">
+              <Btn icon="alignLeft" title="Align left" active={!s.alignCenter && !s.alignRight} onClick={() => { close(); c().setTextAlign("left").run(); }} />
+              <Btn icon="alignCenter" title="Align center" active={s.alignCenter} onClick={() => { close(); c().setTextAlign("center").run(); }} />
+              <Btn icon="alignRight" title="Align right" active={s.alignRight} onClick={() => { close(); c().setTextAlign("right").run(); }} />
+              <span className="tb-sep" />
+              <Btn
+                icon="outdent"
+                title="Outdent (Shift+Tab)"
+                disabled={!s.canLift}
+                onClick={() => (editor.isActive("taskItem") ? c().liftListItem("taskItem").run() : c().liftListItem("listItem").run())}
+              />
+              <Btn
+                icon="indent"
+                title="Indent (Tab)"
+                disabled={!s.canSink}
+                onClick={() => (editor.isActive("taskItem") ? c().sinkListItem("taskItem").run() : c().sinkListItem("listItem").run())}
+              />
+            </div>
+            <div className="menu-sep" />
+            <MenuItem active={s.strike} onSelect={() => { close(); c().toggleStrike().run(); }} shortcut={kbd("Ctrl+T")}>
               <Icon name="strike" size={16} /> Strikethrough
             </MenuItem>
-            <MenuItem active={s.code} onSelect={() => { close(); c().toggleCode().run(); }}>
+            <MenuItem active={s.code} onSelect={() => { close(); c().toggleCode().run(); }} shortcut={kbd("Ctrl+E")}>
               <Icon name="code" size={16} /> Inline code
             </MenuItem>
             <MenuItem active={s.quote} onSelect={() => { close(); c().toggleBlockquote().run(); }}>
@@ -289,10 +262,10 @@ export default function Toolbar({ editor, onLink, onInsertUrl }: Props) {
             <MenuItem onSelect={() => { close(); c().setHorizontalRule().run(); }}>
               <Icon name="divider" size={16} /> Divider
             </MenuItem>
-            <MenuItem onSelect={() => { close(); c().unsetAllMarks().clearNodes().run(); }}>
+            <MenuItem onSelect={() => { close(); c().unsetAllMarks().clearNodes().run(); }} shortcut={kbd("Ctrl+\\")}>
               <Icon name="clearFormat" size={16} /> Clear formatting
             </MenuItem>
-          </>
+          </div>
         )}
       </Dropdown>
     </div>

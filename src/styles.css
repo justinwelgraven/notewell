@@ -308,18 +308,23 @@ body.is-resizing iframe { pointer-events: none; }
 .tb-btn:hover:not(:disabled), .tb-btn.is-open { background: var(--hover); }
 .tb-btn.is-active { background: var(--green-soft); color: var(--green); }
 .tb-btn-wide { padding: 0 5px; }
-.tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 6px; }
+.tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
 .tb-insert { height: 32px; padding: 0 10px 0 8px; border-radius: 16px; display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-weight: 600; }
 .tb-insert:hover, .tb-insert.is-open { background: var(--green-soft); }
 .tb-select { height: 32px; padding: 0 8px; border-radius: var(--radius); display: inline-flex; align-items: center; gap: 6px; color: var(--tb-text); font-size: 13.5px; }
 .tb-select:hover, .tb-select.is-open { background: var(--hover); }
 .tb-select-label { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.w-style { width: 104px; }
+.w-style { width: 94px; }
 .w-font { width: 82px; }
 .w-size { width: 20px; }
 .tb-color { position: relative; display: grid; place-items: center; }
 .tb-color-bar { position: absolute; left: 2px; right: 2px; bottom: -3px; height: 3px; border-radius: 2px; }
-.tb-row { display: flex; gap: 2px; }
+.tb-row { display: flex; gap: 2px; align-items: center; padding: 0 6px 4px; }
+.tb-more { min-width: 230px; }
+.tb-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 0 6px 8px; }
+.tb-chips button { font-size: 12.5px; padding: 5px 0; border-radius: 5px; border: 1px solid var(--border); color: var(--text-2); }
+.tb-chips button:hover { background: var(--hover); }
+.tb-chips button.is-active { border-color: var(--green); color: var(--green); font-weight: 600; }
 
 /* Dropdowns & menus */
 .dropdown { position: relative; display: inline-flex; }
@@ -472,8 +477,12 @@ body.is-resizing iframe { pointer-events: none; }
 .embed-block.is-selected .embed-frame { box-shadow: 0 0 0 3px var(--green); }
 /* Players have their own controls in the corners (e.g. Spotify's ✕), so Notewell's buttons sit
    outside the player: a slim column just to its right. */
-.embed-block { max-width: min(640px, calc(100% - 44px)); }
-.embed-block .node-actions { top: 0; right: -40px; flex-direction: column; }
+/* The block itself reaches under the button column (padding), so moving the mouse from the player
+   to the buttons never "leaves" it — and the buttons linger briefly instead of vanishing at once. */
+.embed-block { max-width: 684px; padding-right: 44px; }
+.embed-block .node-actions { top: 0; right: 0; flex-direction: column; }
+.node-actions { transition: opacity 0.15s 0.4s; }
+.lp-card:hover .node-actions, .embed-block:hover .node-actions { transition-delay: 0s; }
 
 .node-actions {
   position: absolute; top: 8px; right: 8px;
