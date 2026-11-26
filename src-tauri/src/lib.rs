@@ -98,6 +98,16 @@ fn enable_spellcheck_languages(identifier: &str) {
     let _ = fs::write(&path, prefs.to_string());
 }
 
+/// Mac: WKWebView only underlines misspellings when the app's "Check Spelling While Typing" setting is
+/// on. Apps normally switch it on via Edit → Spelling and Grammar; Notewell has no such menu item, so it
+/// stayed off. Turn it on (the macOS spell checker then detects English / Dutch by itself).
+#[cfg(target_os = "macos")]
+fn enable_mac_spellcheck() {
+    use objc2_foundation::{NSString, NSUserDefaults};
+    let defaults = NSUserDefaults::standardUserDefaults();
+    defaults.setBool_forKey(true, &NSString::from_str("WebContinuousSpellCheckingEnabled"));
+}
+
 #[cfg(all(test, windows))]
 mod spellcheck_tests {
     use super::*;
@@ -344,6 +354,8 @@ pub fn run() {
     // Before any window (and its WebView2 browser) starts: spell check English + Dutch.
     #[cfg(windows)]
     enable_spellcheck_languages("com.notewell.desktop");
+    #[cfg(target_os = "macos")]
+    enable_mac_spellcheck();
 
     let builder = tauri::Builder::default().manage(Quitting(AtomicBool::new(false)));
 
