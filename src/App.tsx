@@ -610,6 +610,8 @@ export default function App() {
 
   return (
     <div className={`app${focusMode && !narrow ? " is-focus" : ""}${layoutClass}`}>
+      {/* iPhone: dark strip behind the status bar (clock, network icons) — see styles.css */}
+      <div className="status-scrim" aria-hidden="true" />
       {compact && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
       {showRail && !focusMode && (
         <Rail

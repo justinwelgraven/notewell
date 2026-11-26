@@ -10,9 +10,10 @@
     <!-- iPhone home-screen app -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <!-- Solid status bar: with "black-translucent" the iPhone Duo shrank the app by the status-bar height
-         after rotating (an empty band at the bottom). -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <!-- Edge to edge (Apple's guidance for full-screen web apps): the app draws under the status bar and
+         keeps its content inside the safe areas (env(safe-area-inset-*) in styles.css). A solid "black"
+         bar made the iPhone Duo report no status-bar inset, so the top of the app sat under the icons. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Notewell" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" href="icons/favicon-32.png" />

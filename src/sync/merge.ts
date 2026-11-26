@@ -11,6 +11,7 @@
  * so nothing is ever lost.
  */
 import type { AppData, Note, Notebook, SyncMeta } from "../types";
+import { mergeNoteEdits } from "./threeWay";
 
 export const emptyMeta = (): SyncMeta => ({ cursor: null, notes: {}, deleted: [], notebooksRev: null, notebooksAt: 0 });
 export const metaOf = (d: AppData): SyncMeta => d.sync ?? emptyMeta();
@@ -40,7 +41,7 @@ export type RemoteChange =
  * last sync (=== / !==), never with < or >: timestamps from different devices can't be compared
  * safely when one device's clock is off.
  */
-const syncedVersion = (n: Note, m: SyncMeta) => !!m.notes[n.id] && n.updatedAt === m.notes[n.id].at;
+export const syncedVersion = (n: Note, m: SyncMeta) => !!m.notes[n.id] && n.updatedAt === m.notes[n.id].at;
 
 /** Notes whose current version hasn't been uploaded yet. */
 export function pendingNotes(d: AppData): Note[] {
@@ -89,7 +90,10 @@ export function applyRemote(
   changes: RemoteChange[],
   cursor: string | null,
   newId: () => string,
+  /** Per note changed on both sides: the version both devices last had (for merging). */
+  bases: Record<string, Note> = {},
 ): { data: AppData; touched: string[] } {
+  let merged: Note | null = null;
   const meta: SyncMeta = { ...metaOf(d), notes: { ...metaOf(d).notes }, deleted: [...metaOf(d).deleted] };
   let notes = [...d.notes];
   let out: AppData = d;
@@ -116,6 +120,11 @@ export function applyRemote(
         // Only changed remotely: take it.
         notes[i] = remote;
         meta.notes[id] = { rev, at: remote.updatedAt };
+        touched.push(id);
+      } else if (bases[id] && (merged = mergeNoteEdits(bases[id], local, remote))) {
+        // Changed on both sides, but in different places: keep both changes in one note.
+        notes[i] = merged;
+        meta.notes[id] = { rev, at: -1 }; // stays "pending", so the combined version gets uploaded
         touched.push(id);
       } else if (local.updatedAt >= remote.updatedAt) {
         // Changed on both sides, local is newer: keep local (it will upload over this rev),

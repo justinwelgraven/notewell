@@ -23,6 +23,7 @@ import {
   notebooksFileOf,
   notebooksPending,
   pendingNotes,
+  syncedVersion,
   type NotebooksFile,
   type RemoteChange,
 } from "./merge";
@@ -98,6 +99,18 @@ export class SyncEngine {
     setRemoteImageLoader(async (id) => (await download(imagePath(id))).text);
     this.onImagesChanged = () => this.schedulePush();
     window.addEventListener("notewell:images-changed", this.onImagesChanged);
+    // Coming back (iPhone app reopened, laptop woke up, back online): the live connection may have died
+    // while away, so catch up right away — before you start editing an old version of a note.
+    this.onResume = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - this.lastResume < 3000) return;
+      this.lastResume = Date.now();
+      this.enqueue(() => this.fullSync());
+    };
+    document.addEventListener("visibilitychange", this.onResume);
+    window.addEventListener("focus", this.onResume);
+    window.addEventListener("online", this.onResume);
+    window.addEventListener("pageshow", this.onResume);
     this.enqueue(() => this.fullSync());
     void this.liveLoop();
   }
@@ -107,9 +120,15 @@ export class SyncEngine {
     window.clearTimeout(this.pushTimer);
     setRemoteImageLoader(null);
     window.removeEventListener("notewell:images-changed", this.onImagesChanged);
+    document.removeEventListener("visibilitychange", this.onResume);
+    window.removeEventListener("focus", this.onResume);
+    window.removeEventListener("online", this.onResume);
+    window.removeEventListener("pageshow", this.onResume);
   }
 
   private onImagesChanged = () => {};
+  private onResume = () => {};
+  private lastResume = Date.now();
 
   /** Call after any local change; uploads once typing pauses. */
   schedulePush() {
@@ -218,9 +237,31 @@ export class SyncEngine {
     );
     changes.push(...slots.filter((c): c is RemoteChange => !!c));
 
+    // Notes also edited here since the last sync: fetch the version both devices last had, so the two
+    // sets of edits can be combined instead of making a conflicted copy.
+    const bases: Record<string, Note> = {};
+    if (changes.length) {
+      // Include what's just been typed in the open note, so it's part of the merge.
+      window.dispatchEvent(new Event("notewell:flush-editor"));
+      await settle();
+    }
+    const snapshot = this.getData()!;
+    const both = changes.filter((c): c is Extract<RemoteChange, { kind: "note" }> => {
+      if (c.kind !== "note") return false;
+      const local = snapshot.notes.find((n) => n.id === c.id);
+      return !!local && !!meta.notes[c.id]?.rev && !syncedVersion(local, metaOf(snapshot));
+    });
+    await pool(both, PARALLEL, async (c) => {
+      try {
+        bases[c.id] = JSON.parse((await download(`rev:${meta.notes[c.id].rev}`)).text) as Note;
+      } catch {
+        // No base available: falls back to keeping a conflicted copy.
+      }
+    });
+
     let touched: string[] = [];
     this.update((d) => {
-      const r = applyRemote(d, changes, cursor, uid);
+      const r = applyRemote(d, changes, cursor, uid, bases);
       touched = r.touched;
       return r.data;
     });

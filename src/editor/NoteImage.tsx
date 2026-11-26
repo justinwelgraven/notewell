@@ -9,7 +9,9 @@ export const NoteImage = Node.create({
   name: "noteImage",
   group: "block",
   atom: true,
-  draggable: true,
+  // Not draggable: on the desktop apps a draggable picture could get stuck "half-dragged", so a click
+  // elsewhere didn't deselect it. Move pictures with cut & paste.
+  draggable: false,
   selectable: true,
 
   addAttributes() {
@@ -49,7 +51,7 @@ export async function insertImages(editor: Editor, files: File[], pos?: number) 
   else editor.chain().focus().insertContent(content).run();
 }
 
-function NoteImageView({ node, editor, selected, deleteNode, updateAttributes }: NodeViewProps) {
+function NoteImageView({ node, editor, selected, deleteNode, updateAttributes, getPos }: NodeViewProps) {
   const id = node.attrs.id as string | null;
   const [src, setSrc] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
@@ -70,9 +72,21 @@ function NoteImageView({ node, editor, selected, deleteNode, updateAttributes }:
 
   const small = node.attrs.size === "small";
   return (
-    <NodeViewWrapper className={`ni-wrap${selected ? " is-selected" : ""}${small ? " is-small" : ""}`} data-drag-handle>
+    <NodeViewWrapper className={`ni-wrap${selected ? " is-selected" : ""}${small ? " is-small" : ""}`}>
       {src ? (
-        <img className="ni-img" src={src} alt="" draggable={false} />
+        <img
+          className="ni-img"
+          src={src}
+          alt=""
+          draggable={false}
+          // One click selects the picture (shows its buttons); a click anywhere else deselects it.
+          onMouseDown={(e) => {
+            if (e.button !== 0 || !editor.isEditable) return;
+            e.preventDefault();
+            const pos = getPos();
+            if (typeof pos === "number") editor.chain().focus().setNodeSelection(pos).run();
+          }}
+        />
       ) : (
         <div className="ni-placeholder">
           <Icon name="image" size={22} />

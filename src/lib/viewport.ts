@@ -9,8 +9,8 @@
  *
  * iPhone Duo, Home Screen app: after rotating, iOS shrank the app's window by 82pt (the status-bar
  * inset subtracted a second time) and clips anything drawn below it — not fixable from the page.
- * index.html therefore uses a solid ("black") status bar instead of "black-translucent", so the app
- * starts below the status bar and there is no inset for iOS to miscount.
+ * (A solid "black" status bar was tried against that, but then the Duo put the app's top under the
+ * status-bar icons without reporting an inset, so index.html is back to "black-translucent".)
  */
 import { useEffect, useState } from "react";
 

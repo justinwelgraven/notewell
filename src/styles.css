@@ -509,6 +509,9 @@ body.is-resizing iframe { pointer-events: none; }
 }
 .ni-placeholder button { margin-left: auto; color: var(--green); font-weight: 600; font-size: 13px; }
 .ni-wrap:hover .node-actions, .ni-wrap.is-selected .node-actions { opacity: 1; pointer-events: auto; transition-delay: 0s; }
+/* Clicked outside the note body (title, list, …): the picture no longer looks selected. */
+.ProseMirror:not(.ProseMirror-focused) .ni-wrap.is-selected .ni-img { box-shadow: none; }
+.ProseMirror:not(.ProseMirror-focused) .ni-wrap.is-selected:not(:hover) .node-actions { opacity: 0; pointer-events: none; }
 @media (hover: none) {
   .ni-wrap .node-actions { opacity: 0; }
   .ni-wrap.is-selected .node-actions { opacity: 1; }
@@ -784,6 +787,32 @@ html.keyboard-open .app.is-phone .toolbar { display: none; } /* the bar replaces
 .kb-btn.is-active { background: var(--green-soft); color: var(--green); }
 .kb-sep { flex-shrink: 0; width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
 .kb-done { flex-shrink: 0; width: 44px; height: 40px; border-radius: 8px; display: grid; place-items: center; color: var(--text-2); border-left: 1px solid var(--border); margin-left: 4px; }
+
+/* ---- iPhone (Apple HIG): edge to edge, content inside the safe areas ----
+   The page draws under the status bar (black-translucent); every top bar adds the status-bar inset.
+   The strip below sits behind the clock/network icons so they're readable in light mode too. */
+.status-scrim { display: none; }
+html.vv-tracked .status-scrim {
+  display: block; position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: env(safe-area-inset-top); background: #1a1a1a; pointer-events: none;
+}
+/* Sideways: keep text and buttons clear of the rounded corners / sensor housing on both sides. */
+.app.is-compact .ep-doc { padding-right: calc(18px + env(safe-area-inset-right)); }
+.app.is-tablet .ep-doc { padding-right: calc(28px + env(safe-area-inset-right)); }
+.app.is-compact .toolbar { padding-right: calc(6px + env(safe-area-inset-right)); }
+.app.is-phone .toolbar, .app.is-phone .ep-topbar { padding-left: calc(4px + env(safe-area-inset-left)); }
+.app.is-phone .ep-doc { padding-left: calc(18px + env(safe-area-inset-left)); }
+html.keyboard-open .app.is-compact .kb-bar { padding-left: calc(6px + env(safe-area-inset-left)); padding-right: calc(4px + env(safe-area-inset-right)); }
+/* Touch targets at least 44 pt (Apple's minimum). */
+.app.is-compact .tb-btn { min-width: 40px; height: 44px; }
+.app.is-compact .tb-insert, .app.is-compact .tb-select { height: 44px; }
+.app.is-compact .ep-icon-btn, .app.is-compact .nl-tool { min-width: 44px; height: 44px; }
+.app.is-compact .ep-back { min-height: 44px; }
+.app.is-compact .nl-menu { width: 44px; height: 44px; margin-left: -10px; }
+.kb-btn { width: 44px; height: 44px; }
+.kb-done { height: 44px; }
+.app.is-compact .tag-chip button { min-width: 28px; min-height: 28px; }
+.app.is-compact .modal { max-height: calc(var(--app-height, 100dvh) - env(safe-area-inset-top) - 24px); overflow-y: auto; }
 
 /* ---- Sync status + pull-to-sync in the note list ---- */
 .nl-count { display: flex; align-items: center; gap: 10px; min-width: 0; }
