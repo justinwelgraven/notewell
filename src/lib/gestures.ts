@@ -4,7 +4,8 @@
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
 
-const EDGE = 28; // px from the left edge where a back-swipe may start
+const BACK_EDGE = 64; // px from the left edge of the note editor
+const DRAWER_EDGE = 28; // px from the left edge of the note list
 const SWIPE = 70; // px to travel before it counts
 
 /** Swipe in from the left edge of `ref` → `onSwipe` (e.g. back to the list). The element follows the finger. */
@@ -53,7 +54,7 @@ export function useEdgeSwipe(ref: RefObject<HTMLElement | null>, onSwipe: () => 
       if (settling) return;
       const t = e.touches[0];
       const rect = el.getBoundingClientRect();
-      if (t.clientX - rect.left >= EDGE) return;
+      if (t.clientX - rect.left >= (slideAway ? BACK_EDGE : DRAWER_EDGE)) return;
       width = rect.width;
       dx = 0;
       start = { x: t.clientX, y: t.clientY };
