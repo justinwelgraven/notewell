@@ -620,6 +620,10 @@ kbd {
    .is-compact = phone (.is-phone, one screen at a time) or unfolded iPhone Duo / iPad portrait
    (.is-tablet, list + note side by side). Both use a slide-in sidebar drawer. */
 html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+/* No automatic text enlarging when the iPhone is turned sideways. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* No double-tap zoom on the interface. */
+html.vv-tracked .app { touch-action: manipulation; }
 .app.is-compact { position: relative; }
 .app.is-compact .sidebar {
   position: fixed; top: 0; bottom: 0; left: 0; z-index: 60;

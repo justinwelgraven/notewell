@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- maximum-scale=1: iOS zooms in when a field with text under 16px gets focus (note text is 15px on
+         iPhone) and can keep a zoom after rotating. iOS still allows pinch-zoom for accessibility. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="theme-color" content="#1a1a1a" />
     <!-- iPhone home-screen app -->
