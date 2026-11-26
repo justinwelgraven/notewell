@@ -11,6 +11,26 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Windo
 const DATA_FILE: &str = "notewell-data.json";
 const MAX_HTML_BYTES: usize = 3 * 1024 * 1024;
 
+#[cfg(windows)]
+#[tauri::command]
+fn set_caption_colors(window: tauri::WebviewWindow, dark: bool) -> Result<(), String> {
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
+    };
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+    // Match the editor's --bg and --text. Neutral grays have identical RGB and COLORREF values.
+    let colors: [(_, u32); 2] = [
+        (DWMWA_CAPTION_COLOR, if dark { 0x212121 } else { 0xffffff }),
+        (DWMWA_TEXT_COLOR, if dark { 0xe2e2e2 } else { 0x333333 }),
+    ];
+    for (attribute, color) in colors {
+        // DWM reads a single COLORREF synchronously from this local value.
+        unsafe { DwmSetWindowAttribute(hwnd, attribute, (&color as *const u32).cast(), 4) }
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn data_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -308,6 +328,8 @@ pub fn run() {
         })
         .manage(dropbox::DropboxState::default())
         .invoke_handler(tauri::generate_handler![
+            #[cfg(windows)]
+            set_caption_colors,
             load_data,
             save_data,
             save_export,

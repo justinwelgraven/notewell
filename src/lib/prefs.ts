@@ -85,6 +85,12 @@ export function applyTheme() {
     lastNativeTheme = native;
     import("@tauri-apps/api/window")
       .then(({ getCurrentWindow }) => getCurrentWindow().setTheme(prefs.theme === "system" ? null : dark ? "dark" : "light"))
+      .then(async () => {
+        if (/Windows/i.test(navigator.userAgent) && native === lastNativeTheme) {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("set_caption_colors", { dark });
+        }
+      })
       .catch(() => {});
   }
 }
