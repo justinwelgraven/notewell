@@ -693,13 +693,13 @@ html.keyboard-open .app.is-compact .ep-doc { padding-bottom: 24px; }
 .app.is-phone .toolbar .dropdown:has(.w-size) { display: none; }
 .app.is-phone .ep-doc { padding: 16px 18px 80px; }
 .app.is-phone .ep-title { font-size: 24px; }
-.app.is-phone .note-body { font-size: 17px; }
+.app.is-phone .note-body { font-size: 15px; }
 .app.is-phone .lp-image { width: 110px; }
 
 /* iPhone Duo unfolded / iPad portrait: list + note side by side */
 .app.is-tablet .notelist { width: clamp(260px, 40%, 380px); }
 .app.is-tablet .ep-doc { padding: 20px 28px 80px; max-width: none; }
-.app.is-tablet .note-body { font-size: 16.5px; }
+.app.is-tablet .note-body { font-size: 14.5px; }
 /* Narrow note pane (unfolded, held upright): drop the least-used toolbar menus */
 @media (max-width: 799px) {
   .app.is-tablet .toolbar .dropdown:has(.w-font),
