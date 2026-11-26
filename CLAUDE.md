@@ -29,6 +29,12 @@ User-facing docs, setup and build steps: **README.md**.
 - Project folder lives in Dropbox: `node_modules`, `dist` are marked Dropbox-ignored by `scripts/dropbox-ignore.mjs` (preinstall). Rust build output goes outside the project via `scripts/tauri.mjs` (`npm run tauri ...`). Never build into the project folder.
 - Window keystroke tests: don't send keystrokes to the desktop app with SendKeys — they can land in the user's active window. Use the browser preview for UI/key tests.
 
+## Releasing
+- Git repo lives on the Windows PC only (`.git` is Dropbox-ignored). Commit + `git push` to `main` = release:
+  GitHub Actions builds/signs Mac + Windows as `v0.1.<run>` (auto-update via `tauri-plugin-updater`, `latest.json` on GitHub releases),
+  Netlify publishes the web app. Signing key: `~/.tauri/notewell.key` (loaded by `scripts/tauri.mjs`; GitHub secret `TAURI_SIGNING_PRIVATE_KEY`).
+- Updater endpoint in `src-tauri/tauri.conf.json` → `plugins.updater.endpoints` (GitHub user/repo).
+
 ## Commands
 - `npm install` (once per computer) · `npm run tauri dev` · `npm run tauri build` · `npm run build:web` (web app → `web/`)
 - Type-check: `npx tsc --noEmit -p .`

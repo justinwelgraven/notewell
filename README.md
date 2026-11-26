@@ -125,5 +125,17 @@ Notes on the web version:
 - Link *preview cards* can't be fetched by a web page (browsers block reading other sites), so on the web a pasted link shows as a simple card with the site name; previews made on the desktop sync over fine. YouTube/Spotify players work.
 - No quick-note shortcut or tray on the web, of course.
 
+## Automatic updates
+Every push to GitHub (`main`):
+- **GitHub Actions** (`.github/workflows/build.yml`) builds Mac + Windows, numbers it `0.1.<build>` and publishes a release.
+  Installed desktop apps check at startup and every 6 hours and show **"Restart to update"**.
+- **Netlify** rebuilds and publishes the web version (`netlify.toml`).
+
+Updates are signed. The private key is `%USERPROFILE%\.tauri\notewell.key` on the Windows PC (never in Dropbox or Git) —
+**keep a backup of it** (e.g. in a password manager). Without it, installed apps can't be updated anymore and would need a reinstall.
+The same key is stored as the GitHub secret `TAURI_SIGNING_PRIVATE_KEY`.
+
+The Git repository lives on the Windows PC (`.git` is excluded from Dropbox to avoid corruption); GitHub is the shared copy.
+
 ## Roadmap
 - Native iOS app (needs a Mac with Xcode and an Apple Developer account) — the web version covers the iPhone for now
