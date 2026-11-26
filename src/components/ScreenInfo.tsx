@@ -26,7 +26,7 @@ export default function ScreenInfo() {
           <br />
           heights: app {app ? Math.round(app.height) : "?"} · inner {r.inner} · client {r.client} · visual {r.visual ?? "–"} · screen {x.screen}
           <br />
-          css: vh {x.vh} · svh {x.svh} · lvh {x.lvh} · dvh {x.dvh} · safe top {x.safeTop} · bottom {x.safeBottom} · layout {layoutMode()}
+          css: vh {x.vh} · svh {x.svh} · lvh {x.lvh} · dvh {x.dvh} · safe top {x.safeTop} · bottom {x.safeBottom} · status gap {document.documentElement.style.getPropertyValue("--safe-top") || "–"} · layout {layoutMode()}
         </div>
       )}
     </div>

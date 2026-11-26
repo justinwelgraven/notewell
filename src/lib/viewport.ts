@@ -112,6 +112,25 @@ function keepCaretVisible() {
   else if (rect.top < box.top + room) scroller.scrollTop -= box.top + room - rect.top;
 }
 
+/**
+ * Room to leave for the status bar (--safe-top, used instead of env(safe-area-inset-top) in styles.css).
+ * The Home Screen app on the iPhone Duo can draw under the status bar while reporting an inset of 0,
+ * so the header ended up under the clock and network icons. When that happens (Home Screen app,
+ * upright), use the last real inset seen on this device, or a standard status-bar height.
+ * Sideways iPhones hide the status bar, so 0 is trusted there.
+ */
+const SAFE_TOP_KEY = "notewell-safe-top";
+function statusBarInset(): number {
+  const env = cssLength("env(safe-area-inset-top, 0px)", "paddingTop") ?? 0;
+  if (env > 0) {
+    if (isPortrait() && isHomeScreen() && String(env) !== localStorage.getItem(SAFE_TOP_KEY)) localStorage.setItem(SAFE_TOP_KEY, String(env));
+    return env;
+  }
+  if (!isHomeScreen() || !isPortrait()) return 0;
+  const seen = Number(localStorage.getItem(SAFE_TOP_KEY));
+  return seen > 0 && seen < 120 ? seen : 50;
+}
+
 export function trackVisibleViewport() {
   const root = document.documentElement;
   const vv = window.visualViewport;
@@ -139,6 +158,8 @@ export function trackVisibleViewport() {
       if (keyboard && changed) requestAnimationFrame(keepCaretVisible);
       if (root.style.getPropertyValue("--app-top") !== t) root.style.setProperty("--app-top", t);
       if (root.classList.contains("keyboard-open") !== keyboard) root.classList.toggle("keyboard-open", keyboard);
+      const st = `${statusBarInset()}px`;
+      if (root.style.getPropertyValue("--safe-top") !== st) root.style.setProperty("--safe-top", st);
       // Never let the page itself stay scrolled: everything scrolls inside the app.
       if (!keyboard && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
     });
