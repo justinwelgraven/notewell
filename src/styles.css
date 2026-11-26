@@ -535,6 +535,22 @@ body.is-resizing iframe { pointer-events: none; }
   .ni-wrap.is-selected .node-actions { opacity: 1; }
 }
 
+/* Ctrl/⌘+A selects the whole note: the title shows as selected too. */
+.ep-title.is-all-selected { background: var(--selection, rgba(46, 160, 100, 0.28)); border-radius: 4px; }
+
+/* ---- Spell check drawn by Notewell (Windows app, English + Dutch; see editor/NativeSpell.ts) ---- */
+.spell-error { text-decoration: underline wavy #e0393e; text-decoration-skip-ink: none; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.spell-menu {
+  position: fixed; z-index: 400; min-width: 200px; max-width: 260px; padding: 4px;
+  background: var(--float-bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-pop);
+}
+.spell-suggestions { font-size: 12.5px; color: var(--text-3); padding: 2px 0; }
+.spell-suggestions:not(:has(button)) { padding: 6px 10px; }
+.spell-item { display: block; width: 100%; text-align: left; padding: 6px 10px; border-radius: 5px; font-size: 13.5px; color: var(--text); }
+.spell-item.is-suggestion { font-weight: 600; }
+.spell-item:hover { background: var(--hover); }
+.spell-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+
 /* ---- Links between notes ([[ ) ---- */
 .note-link {
   display: inline; padding: 1px 6px; margin: 0 1px; border-radius: 5px; cursor: pointer;

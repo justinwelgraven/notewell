@@ -1,4 +1,5 @@
 mod dropbox;
+mod spell;
 
 use std::{
     fs,
@@ -414,6 +415,11 @@ pub fn run() {
             load_data,
             save_data,
             save_export,
+            spell::spell_languages,
+            spell::spell_check,
+            spell::spell_suggest,
+            spell::spell_add,
+            spell::spell_ignore,
             fetch_page,
             open_quick_note,
             finish_close,

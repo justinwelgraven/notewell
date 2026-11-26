@@ -6,7 +6,9 @@ Built with [Tauri 2](https://tauri.app) (native shell) + React + [TipTap](https:
 ## Features
 - Sidebar with Shortcuts, Notes, Notebooks, Tags and Trash; search across titles, text and tags
 - Formatting: headers, fonts, sizes, colours, bold/italic/underline/strike, highlight, lists, checklists, links, alignment, quotes, code, dividers
-- Spell check via the operating system (right-click a misspelled word for suggestions)
+- Spell check in English and Dutch together (right-click a misspelled word for suggestions, Add to dictionary or Ignore).
+  Windows uses its own spell checker (install "Basic typing" for Dutch in Windows language settings); Mac and iPhone detect the language automatically
+- Ctrl+A / ⌘A selects the whole note including the title; copying it puts the title in bold
 - Pictures: paste a screenshot/photo, drag one in, or Insert → Picture (iPhone: the picture button above the keyboard). Large photos are shrunk; pictures sync through Dropbox (`/images/`)
 - Pin notes to the top of the list (right-click / long-press a note, or the note's ⋯ menu)
 - Search words are highlighted in the note list and in the open note

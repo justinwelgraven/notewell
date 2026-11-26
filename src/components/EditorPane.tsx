@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { getText, getTextSerializersFromSchema } from "@tiptap/core";
-import type { Node as PMNode } from "@tiptap/pm/model";
+import { DOMSerializer, type Node as PMNode } from "@tiptap/pm/model";
+import type { EditorView } from "@tiptap/pm/view";
 import type { Note, Notebook } from "../types";
 import { editorExtensions, noteBodyAttributes } from "../editor/extensions";
+import { nativeSpellcheck } from "../editor/NativeSpell";
 import { insertUrlBlock } from "../editor/SmartPaste";
 import { isUrl } from "../lib/embeds";
 import { findThumb, fullDate, relativeDate } from "../lib/util";
@@ -77,7 +79,22 @@ export default function EditorPane(p: Props) {
     editorProps: {
       attributes: noteBodyAttributes,
       clipboardTextSerializer: (slice) => sliceToText(slice, getPrefs().waCopy),
+      handleDOMEvents: {
+        // After Ctrl/⌘+A, copy and cut include the title (in bold) — see copyWithTitle.
+        copy: (view, e) => copyWithTitle(view, e, false),
+        cut: (view, e) => copyWithTitle(view, e, true),
+        blur: () => {
+          setAllSelected(false);
+          return false;
+        },
+      },
       handleKeyDown: (_view, e) => {
+        // Ctrl/⌘+A: select the whole note, title included.
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
+          e.preventDefault();
+          selectWholeNote();
+          return true;
+        }
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
           e.preventDefault();
           setDialog("link");
@@ -106,6 +123,52 @@ export default function EditorPane(p: Props) {
       if (tags) onChangeRef.current({ tags });
     },
   });
+
+  // ---- Select all (Ctrl/⌘+A) includes the title ----
+  // The title is its own field, so it can't be part of the text selection itself: it's shown as
+  // selected, and copy / cut put "title + text" on the clipboard, with the title in bold
+  // (*Title* for WhatsApp-style copying, <strong> for apps that paste formatted text).
+  const [allSelected, setAllSelected] = useState(false);
+  const allSelectedRef = useRef(false);
+  allSelectedRef.current = allSelected;
+  function selectWholeNote() {
+    const ed = editorInstance.current;
+    if (!ed) return;
+    ed.chain().focus().selectAll().run();
+    setAllSelected(true);
+  }
+  function copyWithTitle(view: EditorView, e: ClipboardEvent, cut: boolean): boolean {
+    const { from, to } = view.state.selection;
+    const whole = from <= 1 && to >= view.state.doc.content.size - 1;
+    if (!allSelectedRef.current || !whole || !e.clipboardData) return false;
+    const title = (titleRef.current?.value ?? "").trim();
+    const wa = getPrefs().waCopy;
+    const bodyText = sliceToText(view.state.doc.slice(0, view.state.doc.content.size), wa);
+    const box = document.createElement("div");
+    box.appendChild(DOMSerializer.fromSchema(view.state.schema).serializeFragment(view.state.doc.content));
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", title ? `${wa ? `*${title}*` : title}\n\n${bodyText}` : bodyText);
+    e.clipboardData.setData("text/html", (title ? `<p><strong>${esc(title)}</strong></p>` : "") + box.innerHTML);
+    if (cut && view.editable) view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+    return true;
+  }
+  const editorInstance = useRef<ReturnType<typeof useEditor>>(null);
+  editorInstance.current = editor;
+  // Any other selection (click, arrow keys, typing) ends "whole note selected".
+  useEffect(() => {
+    if (!editor) return;
+    const check = () => {
+      const { from, to } = editor.state.selection;
+      if (allSelectedRef.current && !(from <= 1 && to >= editor.state.doc.content.size - 1)) setAllSelected(false);
+    };
+    editor.on("selectionUpdate", check);
+    editor.on("update", check);
+    return () => {
+      editor.off("selectionUpdate", check);
+      editor.off("update", check);
+    };
+  }, [editor]);
 
   const dirty = useRef<{ doc: PMNode; selection: { empty: boolean; from: number } } | null>(null);
   const flushTimer = useRef<number | undefined>(undefined);
@@ -355,17 +418,23 @@ export default function EditorPane(p: Props) {
         <div className="ep-doc">
           <textarea
             ref={titleRef}
-            className="ep-title"
+            className={`ep-title${allSelected ? " is-all-selected" : ""}`}
             placeholder="Title"
             value={note.title}
             rows={1}
-            spellCheck
+            spellCheck={!nativeSpellcheck} /* Windows: English-only browser check off; titles are short */
             readOnly={trashed}
             onChange={(e) => p.onChange({ title: e.target.value.replace(/\n/g, "") })}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.preventDefault();
                 window.dispatchEvent(new Event("notewell:focus-list"));
+                return;
+              }
+              // Ctrl/⌘+A in the title also selects the whole note (title + text).
+              if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
+                e.preventDefault();
+                selectWholeNote();
                 return;
               }
               if (e.key === "Enter" || (e.key === "ArrowDown" && !e.shiftKey)) {

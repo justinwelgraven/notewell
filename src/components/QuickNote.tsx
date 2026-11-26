@@ -3,6 +3,7 @@ import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/r
 import { emitTo } from "@tauri-apps/api/event";
 import type { Note, Notebook } from "../types";
 import { editorExtensions, noteBodyAttributes } from "../editor/extensions";
+import { nativeSpellcheck } from "../editor/NativeSpell";
 import { sliceToText } from "../editor/clipboardText";
 import { focusBodyStart } from "../editor/focus";
 import { completedHashtags } from "../editor/Hashtags";
@@ -136,7 +137,7 @@ export default function QuickNote() {
             className="ep-title"
             placeholder="Title"
             rows={1}
-            spellCheck
+            spellCheck={!nativeSpellcheck} /* Windows: English-only browser check off; titles are short */
             value={title}
             onChange={(e) => {
               setTitle(e.target.value.replace(/\n/g, ""));

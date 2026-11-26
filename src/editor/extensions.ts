@@ -13,6 +13,7 @@ import { NoteImage } from "./NoteImage";
 import { SearchHighlight } from "./SearchHighlight";
 import { NoteLink } from "./NoteLink";
 import { isMac } from "../lib/keys";
+import { NativeSpell, nativeSpellcheck } from "./NativeSpell";
 
 /**
  * Attributes of the note text. On Apple devices the text is *not* marked as English (lang=""), so the
@@ -20,7 +21,8 @@ import { isMac } from "../lib/keys";
  * installed spell-check languages regardless, so it keeps the page language.
  */
 export const noteBodyAttributes: Record<string, string> = {
-  spellcheck: "true",
+  // Windows app: our own English + Dutch check (NativeSpell) replaces the browser's English-only one.
+  spellcheck: nativeSpellcheck ? "false" : "true",
   class: "note-body",
   ...(isMac ? { lang: "" } : {}),
 };
@@ -42,6 +44,7 @@ export const editorExtensions = [
   NoteLink,
   SmartPaste,
   SearchHighlight,
+  NativeSpell,
   Hashtags,
   EvernoteShortcuts,
 ];

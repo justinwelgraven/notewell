@@ -50,8 +50,12 @@ User-facing docs, setup and build steps: **README.md**.
 - Spell check English + Dutch: Windows/WebView2 only checks languages in its `spellcheck.dictionaries` pref, so
   `enable_spellcheck_languages` (lib.rs, start of `run()`) adds en-US + nl-NL to
   `%LOCALAPPDATA%\com.notewell.desktop\EBWebView\Default\Preferences` before any webview starts (Rust test included).
-  Windows needs the language's "Basic typing" feature installed, else WebView2 silently drops that dictionary (Dutch was missing
-  on Justin's PC). Verified on Windows with a test copy driven over WebView2 remote debugging (`--remote-debugging-port`).
+  BUT WebView2 only ever spell-checks ONE language (the environment Language) and prunes others from that pref, so on Windows
+  the note body uses Notewell's own check instead: `src-tauri/src/spell.rs` (Windows ISpellChecker, en-US + nl-NL; a word is
+  wrong only if wrong in all languages; COM on one worker thread) + `src/editor/NativeSpell.ts` (decorations, per-paragraph
+  cache keyed by node, right-click menu with suggestions / Add to dictionary / Ignore). Browser spellcheck is off there.
+  Windows needs each language's "Basic typing" feature installed (Dutch was missing on Justin's PC at first).
+- Ctrl/⌘+A in a note selects text + title (title shown selected); copy/cut then add the title in bold (*Title* / <strong>). Verified on Windows with a test copy driven over WebView2 remote debugging (`--remote-debugging-port`).
   CAUTION: a test copy under another identifier still shares the Dropbox sign-in (keychain) and syncs — clean up test notes.
   Mac: `enable_mac_spellcheck` sets WebContinuousSpellCheckingEnabled + NSSpellChecker automaticallyIdentifiesLanguages;
   on Apple devices the note body has lang="" (`noteBodyAttributes`) so the language is detected per text.
