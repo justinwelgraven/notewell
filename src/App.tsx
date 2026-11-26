@@ -22,6 +22,9 @@ import {
 } from "./sync/dropbox";
 import { dedupeStarterNotebooks, removeNotes } from "./sync/merge";
 import ShortcutsDialog from "./components/ShortcutsDialog";
+import NoteActions from "./components/NoteActions";
+import Rail from "./components/Rail";
+import { syncLabel } from "./components/Sidebar";
 import { checkForUpdate, type AvailableUpdate } from "./lib/updater";
 import { watchWebUpdates } from "./lib/webUpdate";
 
@@ -78,6 +81,11 @@ export default function App() {
   const narrow = useMediaQuery("(max-width: 599px)");
   const medium = useMediaQuery("(min-width: 600px) and (max-width: 1099px)");
   const compact = narrow || medium;
+  // iPhone Duo unfolded sideways / iPad: a slim icon rail instead of only the ☰ drawer.
+  const railWide = useMediaQuery("(min-width: 820px)");
+  const showRail = medium && railWide;
+  // Long-press / right-click menu on a note in the list.
+  const [noteMenu, setNoteMenu] = useState<{ id: string; at: { x: number; y: number } | null } | null>(null);
   const [mobilePane, setMobilePane] = useState<"list" | "editor">("list");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const dataRef = useRef<AppData | null>(null);
@@ -519,11 +527,26 @@ export default function App() {
   const showSidebar = compact ? drawerOpen : !focusMode;
   const showList = narrow ? mobilePane === "list" : !focusMode;
   const showEditor = !narrow || mobilePane === "editor";
-  const layoutClass = narrow ? " is-compact is-phone" : medium ? " is-compact is-tablet" : "";
+  const layoutClass = (narrow ? " is-compact is-phone" : medium ? " is-compact is-tablet" : "") + (showRail ? " has-rail" : "");
 
   return (
     <div className={`app${focusMode && !narrow ? " is-focus" : ""}${layoutClass}`}>
       {compact && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
+      {showRail && !focusMode && (
+        <Rail
+          view={view}
+          onView={(v) => {
+            setView(v);
+            setSearch("");
+          }}
+          onMenu={() => setDrawerOpen(true)}
+          onSearch={() => {
+            setDrawerOpen(true);
+            setTimeout(() => searchRef.current?.focus(), 250);
+          }}
+          onNewNote={createNote}
+        />
+      )}
       {showSidebar && (
         <Sidebar
           data={data}
@@ -553,8 +576,15 @@ export default function App() {
       {showList && (
         <NoteList
           width={compact ? undefined : listWidth}
-          onMenu={compact ? () => setDrawerOpen(true) : undefined}
-          onNewNote={compact ? createNote : undefined}
+          onMenu={compact && !showRail ? () => setDrawerOpen(true) : undefined}
+          onNewNote={compact && !showRail ? createNote : undefined}
+          touch={compact}
+          onNoteMenu={(id, at) => setNoteMenu({ id, at })}
+          sync={
+            dbx.connected
+              ? { label: syncLabel(syncUi), state: syncStatus?.state ?? "syncing", onSync: () => engineRef.current?.syncNow() }
+              : undefined
+          }
           listRef={listRef}
           onListKey={onListKey}
           title={search ? `Search results` : header.title}
@@ -662,6 +692,32 @@ export default function App() {
           </button>
         </div>
       )}
+      {noteMenu &&
+        (() => {
+          const n = data.notes.find((x) => x.id === noteMenu.id);
+          if (!n) return null;
+          return (
+            <NoteActions
+              note={n}
+              notebooks={[...data.notebooks].sort((a, b) => a.name.localeCompare(b.name))}
+              at={noteMenu.at}
+              onClose={() => setNoteMenu(null)}
+              onOpen={() => {
+                setSelectedId(n.id);
+                setMobilePane("editor");
+              }}
+              onStar={() => updateNote(n.id, { starred: !n.starred, updatedAt: n.updatedAt })}
+              onMove={(notebookId) => updateNote(n.id, { notebookId })}
+              onDuplicate={() => duplicateNote(n.id)}
+              onTrash={() => {
+                trashNote(n.id);
+                setToast({ text: "Note moved to Trash", undo: () => restoreNote(n.id) });
+              }}
+              onRestore={() => restoreNote(n.id)}
+              onDeleteForever={() => setDialog({ kind: "deleteNote", id: n.id })}
+            />
+          );
+        })()}
       {awaitingCode && (
         <PromptDialog
           key={syncError ?? "code"}

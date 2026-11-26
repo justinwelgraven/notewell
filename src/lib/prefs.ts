@@ -9,7 +9,11 @@ export interface Prefs {
   waCopy: boolean;
   /** Desktop: empty space on each side of a note, in pixels (for readability on wide windows). */
   noteMargin: number;
+  /** Desktop: default text size in notes, in pixels (headings scale with it). */
+  noteFontSize: number;
 }
+
+export const NOTE_FONT = { min: 12, max: 24, default: 16 };
 
 export const NOTE_MARGIN = { min: 16, max: 360, default: 56 };
 export const MARGIN_PRESETS: [string, number][] = [
@@ -20,7 +24,7 @@ export const MARGIN_PRESETS: [string, number][] = [
 ];
 
 const KEY = "notewell-prefs";
-const DEFAULTS: Prefs = { theme: "system", waCopy: true, noteMargin: NOTE_MARGIN.default };
+const DEFAULTS: Prefs = { theme: "system", waCopy: true, noteMargin: NOTE_MARGIN.default, noteFontSize: NOTE_FONT.default };
 
 function load(): Prefs {
   try {
@@ -43,6 +47,8 @@ function notify() {
 function applyNoteMargin() {
   const m = Math.min(NOTE_MARGIN.max, Math.max(NOTE_MARGIN.min, Number(prefs.noteMargin) || NOTE_MARGIN.default));
   document.documentElement.style.setProperty("--note-margin", `${m}px`);
+  const f = Math.min(NOTE_FONT.max, Math.max(NOTE_FONT.min, Number(prefs.noteFontSize) || NOTE_FONT.default));
+  document.documentElement.style.setProperty("--note-font-size", `${f}px`);
 }
 
 export function getPrefs(): Prefs {

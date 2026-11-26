@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { PULL_TRIGGER, useEdgeSwipe, useLongPress, usePullToRefresh } from "../lib/gestures";
 import type { Note, SortMode } from "../types";
 import { relativeDate } from "../lib/util";
 import { Icon } from "./Icon";
@@ -22,6 +23,12 @@ interface Props {
   onMenu?: () => void;
   /** Phone: floating "new note" button. */
   onNewNote?: () => void;
+  /** Long-press (touch) or right-click on a note. */
+  onNoteMenu: (id: string, at: { x: number; y: number } | null) => void;
+  /** Phone/unfolded: pull down to sync, and the sync status line. Undefined when not connected. */
+  sync?: { label: string; state: string; onSync: () => void };
+  /** Phone/unfolded layout: enables touch gestures. */
+  touch?: boolean;
   onListKey: (e: React.KeyboardEvent) => void;
   listRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -34,8 +41,14 @@ const SORT_LABELS: Record<SortMode, string> = {
 
 export default function NoteList(p: Props) {
   const [imgErrors, setImgErrors] = useState<Record<string, true>>({});
+  const sectionRef = useRef<HTMLElement>(null);
+  // Swipe in from the left edge opens the sidebar drawer.
+  useEdgeSwipe(sectionRef, () => p.onMenu?.(), !!p.touch && !!p.onMenu);
+  // Pull the list down to sync with Dropbox.
+  const pull = usePullToRefresh(p.listRef, () => p.sync?.onSync(), !!p.touch && !!p.sync);
+  const press = useLongPress(p.onNoteMenu);
   return (
-    <section className="notelist" style={{ width: p.width }}>
+    <section className="notelist" style={{ width: p.width }} ref={sectionRef}>
       <header className="nl-header">
         <div className="nl-title">
           {p.onMenu && (
@@ -49,6 +62,12 @@ export default function NoteList(p: Props) {
         <div className="nl-subbar">
           <span className="nl-count">
             {p.notes.length} {p.notes.length === 1 ? "note" : "notes"}
+            {p.touch && p.sync && (
+              <button className={`nl-sync nl-sync-${p.sync.state}`} onClick={p.sync.onSync} title="Sync now">
+                <Icon name={p.sync.state === "offline" || p.sync.state === "error" ? "cloudOff" : "cloud"} size={13} />
+                {p.sync.label}
+              </button>
+            )}
           </span>
           <div className="nl-tools">
             {p.isTrash && p.notes.length > 0 && (
@@ -79,6 +98,12 @@ export default function NoteList(p: Props) {
         aria-activedescendant={p.selectedId ? `note-${p.selectedId}` : undefined}
         onKeyDown={p.onListKey}
       >
+        {p.touch && p.sync && (
+          <div className="nl-pull" style={{ height: pull, opacity: Math.min(1, pull / PULL_TRIGGER) }} aria-hidden="true">
+            <Icon name="refresh" size={16} />
+            <span>{pull >= PULL_TRIGGER ? "Release to sync" : "Pull to sync"}</span>
+          </div>
+        )}
         {p.notes.length === 0 && (
           <div className="nl-empty">
             {p.search ? (
@@ -95,7 +120,7 @@ export default function NoteList(p: Props) {
               <>
                 <Icon name="note" size={40} />
                 <p>No notes here yet</p>
-                <span>Click <b>+ New</b> to create one</span>
+                <span>{p.touch ? <>Tap <b>+</b> to create one</> : <>Click <b>+ New</b> to create one</>}</span>
               </>
             )}
           </div>
@@ -110,7 +135,9 @@ export default function NoteList(p: Props) {
               role="option"
               aria-selected={p.selectedId === n.id}
               className={`nl-card${p.selectedId === n.id ? " is-selected" : ""}`}
+              {...press.bind(n.id)}
               onClick={() => {
+                if (press.consumeClick()) return; // that tap ended a long-press
                 p.onSelect(n.id);
                 // Keep keyboard focus on the list, so arrows and Delete work right away.
                 p.listRef.current?.focus({ preventScroll: true });

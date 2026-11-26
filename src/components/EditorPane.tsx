@@ -12,6 +12,8 @@ import { getPrefs } from "../lib/prefs";
 import { completedHashtags, mergeTags } from "../editor/Hashtags";
 import Toolbar from "./Toolbar";
 import MarginControl from "./MarginControl";
+import KeyboardBar from "./KeyboardBar";
+import { useEdgeSwipe } from "../lib/gestures";
 import { Icon } from "./Icon";
 import { Dropdown, MenuItem, PromptDialog } from "./Menu";
 
@@ -39,6 +41,9 @@ export default function EditorPane(p: Props) {
   onChangeRef.current = p.onChange;
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [dialog, setDialog] = useState<null | "link" | "url">(null);
+  // Phone: swipe in from the left edge to go back to the list.
+  const paneRef = useRef<HTMLElement>(null);
+  useEdgeSwipe(paneRef, () => p.onBack?.(), !!p.onBack);
   const tagsRef = useRef(note.tags);
   tagsRef.current = note.tags;
   const tagInputRef = useRef<HTMLInputElement>(null);
@@ -155,7 +160,7 @@ export default function EditorPane(p: Props) {
   };
 
   return (
-    <section className="editor-pane">
+    <section className="editor-pane" ref={paneRef}>
       <div className="ep-topbar">
         <div className="ep-topbar-left">
           {p.onBack ? (
@@ -278,6 +283,7 @@ export default function EditorPane(p: Props) {
         </div>
       </div>
 
+      {editor && !trashed && <KeyboardBar editor={editor} />}
       <footer className="ep-footer">
         <div className="ep-tags">
           <Icon name="tag" size={15} />

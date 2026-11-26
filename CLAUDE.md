@@ -12,9 +12,10 @@ User-facing docs, setup and build steps: **README.md**.
 - `src/App.tsx` — app state (notes, notebooks, views), keyboard shortcuts, sync wiring, screen-size layouts:
   `< 600px` phone / iPhone Duo folded (one pane at a time) · `600–1099px` iPhone Duo unfolded / iPad portrait / narrow window
   (list + note, sidebar drawer) · wider: three columns. CSS classes `.is-compact`, `.is-phone`, `.is-tablet` in `styles.css`.
-- `src/components/` — Sidebar, NoteList, EditorPane, Toolbar, QuickNote (Ctrl+Alt+N window), ShortcutsDialog, Menu (dropdowns/dialogs), Resizer
+- `src/components/` — Sidebar, NoteList, EditorPane, Toolbar, KeyboardBar (formatting above the iPhone keyboard), NoteActions (long-press / right-click menu), Rail (unfolded-sideways icon column), MarginControl (desktop text size & margins), QuickNote (Ctrl+Alt+N window), ShortcutsDialog, Menu (dropdowns/dialogs), Resizer
 - `src/editor/` — LinkPreview + Embed nodes, SmartPaste (URL → card/player), Hashtags (#tag → tag), Shortcuts (Evernote keys), clipboardText (WhatsApp-friendly plain text on copy)
 - `src/sync/` — Dropbox sync: `merge.ts` (pure rules, see tests idea below), `engine.ts` (pull/push/longpoll queue), `dropbox.ts` (API: native via Tauri commands, or fetch on web)
+- `src/lib/gestures.ts` — edge-swipe (back / drawer), pull-to-sync, long-press; `src/lib/viewport.ts` — iPhone visible-area sizing; `src/lib/webUpdate.ts` — web update notice
 - `src/lib/` — storage (load/save, desktop file vs browser IndexedDB), prefs (theme, copy style), keys (Ctrl vs ⌘ labels), util
 - `src-tauri/src/lib.rs` — data file commands, link-preview page fetch, tray/menu bar, global shortcut, quick note window, close-to-tray, single instance
 - `src-tauri/src/dropbox.rs` — Dropbox OAuth (PKCE, loopback http://localhost:53682/callback), token refresh, keychain storage, generic API request

@@ -31,7 +31,7 @@ const THEMES: { value: Theme; label: string; colors: [string, string] }[] = [
   { value: "system", label: "System", colors: ["#1a1a1a", "linear-gradient(135deg, #ffffff 50%, #212121 50%)"] },
 ];
 
-function syncLabel(sync: SyncUi): string {
+export function syncLabel(sync: SyncUi): string {
   if (!sync.dropbox.connected) return "Not syncing";
   const s = sync.status;
   if (!s || s.state === "syncing") return "Syncing…";
