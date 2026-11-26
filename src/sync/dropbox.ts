@@ -3,9 +3,23 @@
  * Desktop: native commands (src-tauri/src/dropbox.rs). Web/iPhone: fetch() (./dropboxWeb.ts).
  */
 import { isTauri } from "../lib/storage";
-import { completeWebSignIn, startWebSignIn, webDisconnect, webRedirectUri, webRequest, webStatus } from "./dropboxWeb";
+import {
+  completeWebSignIn,
+  finishWebSignInWithCode,
+  isHomeScreenApp,
+  restoreWebAuth,
+  startCodeSignIn,
+  startWebSignIn,
+  webDisconnect,
+  webRedirectUri,
+  webRequest,
+  webStatus,
+} from "./dropboxWeb";
 
-export { completeWebSignIn };
+export { completeWebSignIn, finishWebSignInWithCode, restoreWebAuth };
+
+/** Returned by connectDropbox when the user must paste the code Dropbox shows (iPhone Home Screen app). */
+export const NEEDS_CODE = "__needs_code__";
 
 export const REDIRECT_PORT = 53682;
 export const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`;
@@ -32,8 +46,12 @@ function b64url(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** Opens Dropbox sign-in in the browser (OAuth PKCE) and resolves with the account name once approved. */
+/**
+ * Opens Dropbox sign-in (OAuth PKCE) and resolves with the account name once approved,
+ * or with NEEDS_CODE when the user has to paste the code Dropbox shows (Home Screen app).
+ */
 export async function connectDropbox(appKey: string): Promise<string> {
+  const codeFlow = !isTauri && isHomeScreenApp();
   const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
   const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
   const params = new URLSearchParams({
@@ -42,8 +60,12 @@ export async function connectDropbox(appKey: string): Promise<string> {
     code_challenge: challenge,
     code_challenge_method: "S256",
     token_access_type: "offline",
-    redirect_uri: isTauri ? REDIRECT_URI : webRedirectUri(),
+    ...(codeFlow ? {} : { redirect_uri: isTauri ? REDIRECT_URI : webRedirectUri() }),
   });
+  if (codeFlow) {
+    startCodeSignIn(appKey, verifier, `https://www.dropbox.com/oauth2/authorize?${params}`);
+    return NEEDS_CODE;
+  }
   if (!isTauri) {
     // Web: leave for Dropbox; completeWebSignIn() finishes when we come back.
     startWebSignIn(appKey, verifier, `https://www.dropbox.com/oauth2/authorize?${params}`);

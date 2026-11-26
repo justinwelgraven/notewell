@@ -42,6 +42,7 @@ function syncLabel(sync: SyncUi): string {
 
 function DropboxSection({ sync }: { sync: SyncUi }) {
   const [key, setKey] = useState(sync.dropbox.app_key ?? localStorage.getItem("notewell-dbx-key") ?? "");
+  const [code, setCode] = useState("");
   const { dropbox, status } = sync;
   if (dropbox.connected) {
     return (
@@ -57,11 +58,40 @@ function DropboxSection({ sync }: { sync: SyncUi }) {
           </div>
         </div>
         <div className="dbx-actions">
-          <button className="btn btn-secondary btn-sm" onClick={sync.syncNow}>
-            <Icon name="refresh" size={13} /> Sync now
-          </button>
+          {status?.state === "error" && /reconnect/i.test(status.message ?? "") ? (
+            <button className="btn btn-primary btn-sm" onClick={sync.disconnect}>Reconnect</button>
+          ) : (
+            <button className="btn btn-secondary btn-sm" onClick={sync.syncNow}>
+              <Icon name="refresh" size={13} /> Sync now
+            </button>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={sync.disconnect}>Disconnect</button>
         </div>
+      </div>
+    );
+  }
+  if (sync.awaitingCode) {
+    return (
+      <div className="dbx">
+        <div className="dbx-text">
+          <strong>Almost there</strong>
+          <small>Dropbox opened on top. Tap <b>Allow</b>, copy the code it shows, close that page, and paste the code here.</small>
+        </div>
+        <input
+          className="modal-input dbx-input"
+          placeholder="Paste the code from Dropbox"
+          value={code}
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          onChange={(e) => setCode(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+        />
+        {sync.error && <small className="dbx-err">{sync.error}</small>}
+        <button className="btn btn-primary btn-sm" disabled={!code.trim() || sync.connecting} onClick={() => sync.submitCode(code)}>
+          {sync.connecting ? "Connecting…" : "Finish connecting"}
+        </button>
+        <button className="btn btn-secondary btn-sm" onClick={() => sync.connect(key)}>Open Dropbox again</button>
       </div>
     );
   }

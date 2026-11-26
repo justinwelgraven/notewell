@@ -10,15 +10,28 @@ import EditorPane from "./components/EditorPane";
 import { ConfirmDialog, PromptDialog } from "./components/Menu";
 import { Icon } from "./components/Icon";
 import { SyncEngine, type SyncStatus } from "./sync/engine";
-import { completeWebSignIn, connectDropbox, disconnectDropbox, dropboxStatus, type DropboxStatus } from "./sync/dropbox";
+import {
+  completeWebSignIn,
+  connectDropbox,
+  disconnectDropbox,
+  dropboxStatus,
+  finishWebSignInWithCode,
+  NEEDS_CODE,
+  restoreWebAuth,
+  type DropboxStatus,
+} from "./sync/dropbox";
 import { dedupeStarterNotebooks, removeNotes } from "./sync/merge";
 import ShortcutsDialog from "./components/ShortcutsDialog";
 import { checkForUpdate, type AvailableUpdate } from "./lib/updater";
+import { watchWebUpdates } from "./lib/webUpdate";
 
 export interface SyncUi {
   dropbox: DropboxStatus;
   status: SyncStatus | null;
   connecting: boolean;
+  /** iPhone Home Screen app: waiting for the code Dropbox shows. */
+  awaitingCode: boolean;
+  submitCode: (code: string) => void;
   error: string | null;
   connect: (appKey: string) => void;
   disconnect: () => void;
@@ -145,12 +158,13 @@ export default function App() {
   const [dbx, setDbx] = useState<DropboxStatus>({ connected: false, account: null, app_key: null });
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [awaitingCode, setAwaitingCode] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const engineRef = useRef<SyncEngine | null>(null);
 
   useEffect(() => {
     // Web: if we just came back from Dropbox's sign-in page, finish connecting first.
-    (isTauri ? Promise.resolve(null) : completeWebSignIn())
+    (isTauri ? Promise.resolve(null) : restoreWebAuth().then(() => completeWebSignIn()))
       .catch((e) => setSyncError(String(e)))
       .then(() => dropboxStatus())
       .then(setDbx)
@@ -183,13 +197,27 @@ export default function App() {
     dropbox: dbx,
     status: syncStatus,
     connecting,
+    awaitingCode,
     error: syncError,
     connect: (appKey) => {
       setConnecting(true);
       setSyncError(null);
       connectDropbox(appKey.trim())
-        .then(() => dropboxStatus())
-        .then(setDbx)
+        .then(async (result) => {
+          if (result === NEEDS_CODE) setAwaitingCode(true);
+          else setDbx(await dropboxStatus());
+        })
+        .catch((e) => setSyncError(String(e)))
+        .finally(() => setConnecting(false));
+    },
+    submitCode: (code) => {
+      setConnecting(true);
+      setSyncError(null);
+      finishWebSignInWithCode(code)
+        .then(async () => {
+          setAwaitingCode(false);
+          setDbx(await dropboxStatus());
+        })
         .catch((e) => setSyncError(String(e)))
         .finally(() => setConnecting(false));
     },
@@ -364,6 +392,10 @@ export default function App() {
   // ---- Note list keyboard: arrows, Enter, Delete/Backspace ----
   const listRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
+
+  // ---- Web version: a newer version was published and downloaded ----
+  const [webUpdate, setWebUpdate] = useState(false);
+  useEffect(() => (isTauri ? undefined : watchWebUpdates(() => setWebUpdate(true))), []);
 
   // ---- Automatic updates (desktop) ----
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
@@ -582,6 +614,22 @@ export default function App() {
         </section>
       )}
 
+      {webUpdate && (
+        <div className="update-banner" role="status">
+          <Icon name="refresh" size={16} />
+          <span>A new version of Notewell is ready</span>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={async () => {
+              if (dataRef.current) await saveData(dataRef.current);
+              location.reload();
+            }}
+          >
+            Reload
+          </button>
+          <button className="update-later" onClick={() => setWebUpdate(false)}>Later</button>
+        </div>
+      )}
       {update && (
         <div className="update-banner" role="status">
           <Icon name="refresh" size={16} />
@@ -613,6 +661,24 @@ export default function App() {
             <Icon name="x" size={14} />
           </button>
         </div>
+      )}
+      {awaitingCode && (
+        <PromptDialog
+          key={syncError ?? "code"}
+          title="Finish connecting Dropbox"
+          label={
+            syncError
+              ? `That didn't work (${syncError.slice(0, 80)}). Copy the code again and paste it here.`
+              : "In the Dropbox page that opened, tap Allow, copy the code it shows, then paste it here."
+          }
+          placeholder="Code from Dropbox"
+          confirmText={connecting ? "Connecting…" : "Connect"}
+          onCancel={() => {
+            setAwaitingCode(false);
+            setSyncError(null);
+          }}
+          onConfirm={(code) => syncUi.submitCode(code)}
+        />
       )}
       {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
       {dialog?.kind === "newNotebook" && (

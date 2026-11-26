@@ -4,8 +4,11 @@
  *
  * Sign-in: the page redirects to Dropbox and Dropbox sends the user back to this page
  * with ?code=..., which `completeWebSignIn()` exchanges for tokens (OAuth PKCE, no secret).
- * Only the long-lived refresh token is kept (in localStorage); access tokens live in memory.
+ * From the iPhone Home Screen app the code is pasted in instead (iOS doesn't reliably return redirects there).
+ * Only the long-lived refresh token is kept (localStorage + IndexedDB); access tokens live in memory.
  */
+
+import { idbDelete, idbGet, idbSet } from "../lib/idb";
 
 const STORE_KEY = "notewell-dbx-web";
 const PENDING_KEY = "notewell-dbx-pending";
@@ -30,11 +33,32 @@ function readStored(): Stored | null {
   return stored;
 }
 
+/** Saved in two places (localStorage + IndexedDB): if iOS clears one, the other restores it. */
 function writeStored(s: Stored | null) {
   stored = s;
-  if (s) localStorage.setItem(STORE_KEY, JSON.stringify(s));
-  else localStorage.removeItem(STORE_KEY);
+  if (s) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+    idbSet(STORE_KEY, s).catch(() => {});
+  } else {
+    localStorage.removeItem(STORE_KEY);
+    idbDelete(STORE_KEY).catch(() => {});
+  }
 }
+
+/** Call once at startup, before webStatus(): brings back a sign-in that only survived in one place. */
+export async function restoreWebAuth(): Promise<void> {
+  const fromLocal = readStored();
+  const fromDb = await idbGet<Stored>(STORE_KEY).catch(() => undefined);
+  if (fromLocal && !fromDb) idbSet(STORE_KEY, fromLocal).catch(() => {});
+  if (!fromLocal && fromDb?.refresh_token) {
+    stored = fromDb;
+    localStorage.setItem(STORE_KEY, JSON.stringify(fromDb));
+  }
+}
+
+/** True when opened from the iPhone Home Screen (not in a Safari tab). */
+export const isHomeScreenApp = () =>
+  (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia("(display-mode: standalone)").matches;
 
 /** Where Dropbox sends the user back to. Must be listed under Redirect URIs in the Dropbox app. */
 export function webRedirectUri(): string {
@@ -46,10 +70,44 @@ export function webStatus() {
   return { connected: !!s, account: s?.account ?? null, app_key: s?.app_key ?? null };
 }
 
-/** Leaves the page for Dropbox's sign-in. */
+/** Safari tab: leaves the page for Dropbox's sign-in; Dropbox sends the user back with ?code=. */
 export function startWebSignIn(appKey: string, verifier: string, authUrl: string) {
   sessionStorage.setItem(PENDING_KEY, JSON.stringify({ appKey, verifier, redirectUri: webRedirectUri() }));
   location.assign(authUrl);
+}
+
+/**
+ * Home Screen app: iOS doesn't reliably bring a redirect back into the app, so Dropbox opens on top
+ * and shows a code instead; the user pastes it into Notewell (finishWebSignInWithCode).
+ */
+export function startCodeSignIn(appKey: string, verifier: string, authUrl: string) {
+  localStorage.setItem(PENDING_KEY, JSON.stringify({ appKey, verifier, redirectUri: null }));
+  window.open(authUrl, "_blank");
+}
+
+export async function finishWebSignInWithCode(code: string): Promise<string> {
+  const raw = localStorage.getItem(PENDING_KEY);
+  if (!raw) throw new Error("Start again: tap Connect Dropbox first");
+  const pending = JSON.parse(raw) as { appKey: string; verifier: string };
+  const t = await tokenRequest({ code: code.trim(), grant_type: "authorization_code", client_id: pending.appKey, code_verifier: pending.verifier });
+  localStorage.removeItem(PENDING_KEY);
+  return saveNewSignIn(pending.appKey, t);
+}
+
+async function saveNewSignIn(appKey: string, t: { access_token: string; expires_in?: number; refresh_token?: string }) {
+  if (!t.refresh_token) throw new Error("Dropbox didn't return a refresh token");
+  access = { token: t.access_token, expiresAt: Date.now() + (t.expires_in ?? 14400) * 1000 };
+  let account: string | null = null;
+  try {
+    const r = await fetch("https://api.dropboxapi.com/2/users/get_current_account", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${t.access_token}` },
+    });
+    const v = await r.json();
+    account = v.email ?? v.name?.display_name ?? null;
+  } catch {}
+  writeStored({ app_key: appKey, refresh_token: t.refresh_token, account });
+  return account ?? "Dropbox";
 }
 
 async function tokenRequest(params: Record<string, string>) {
@@ -83,27 +141,22 @@ export async function completeWebSignIn(): Promise<string | null> {
     code_verifier: pending.verifier,
     redirect_uri: pending.redirectUri,
   });
-  if (!t.refresh_token) throw new Error("Dropbox didn't return a refresh token");
-  access = { token: t.access_token, expiresAt: Date.now() + (t.expires_in ?? 14400) * 1000 };
-
-  let account: string | null = null;
-  try {
-    const r = await fetch("https://api.dropboxapi.com/2/users/get_current_account", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${t.access_token}` },
-    });
-    const v = await r.json();
-    account = v.email ?? v.name?.display_name ?? null;
-  } catch {}
-  writeStored({ app_key: pending.appKey, refresh_token: t.refresh_token, account });
-  return account ?? "Dropbox";
+  return saveNewSignIn(pending.appKey, t);
 }
 
 async function accessToken(forceRefresh: boolean): Promise<string> {
   const s = readStored();
   if (!s) throw new Error("Not connected to Dropbox");
   if (!forceRefresh && access && Date.now() + 60000 < access.expiresAt) return access.token;
-  const t = await tokenRequest({ grant_type: "refresh_token", refresh_token: s.refresh_token, client_id: s.app_key });
+  let t;
+  try {
+    t = await tokenRequest({ grant_type: "refresh_token", refresh_token: s.refresh_token, client_id: s.app_key });
+  } catch (e) {
+    if (e instanceof TypeError) throw new Error(`offline: ${e.message}`); // no network: try again later
+    // Dropbox no longer accepts this sign-in (e.g. app access removed): ask to reconnect.
+    if (/invalid_grant|400|401/.test(String(e))) throw new Error("Not connected: Dropbox sign-in expired, please reconnect");
+    throw e;
+  }
   access = { token: t.access_token, expiresAt: Date.now() + (t.expires_in ?? 14400) * 1000 };
   return access.token;
 }

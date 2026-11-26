@@ -11,6 +11,7 @@ import { focusBodyStart } from "../editor/focus";
 import { getPrefs } from "../lib/prefs";
 import { completedHashtags, mergeTags } from "../editor/Hashtags";
 import Toolbar from "./Toolbar";
+import MarginControl from "./MarginControl";
 import { Icon } from "./Icon";
 import { Dropdown, MenuItem, PromptDialog } from "./Menu";
 
@@ -199,6 +200,7 @@ export default function EditorPane(p: Props) {
           <span className={`ep-save ep-save-${p.saveState}`}>
             {p.saveState === "saving" ? "Saving…" : p.saveState === "error" ? "Couldn't save" : "All changes saved"}
           </span>
+          <MarginControl />
           {!trashed && (
             <button
               className={`ep-icon-btn${note.starred ? " is-starred" : ""}`}
