@@ -11,6 +11,7 @@ import { Hashtags } from "./Hashtags";
 import { EvernoteShortcuts } from "./Shortcuts";
 import { NoteImage } from "./NoteImage";
 import { SearchHighlight } from "./SearchHighlight";
+import { NoteLink } from "./NoteLink";
 
 export const editorExtensions = [
   StarterKit.configure({
@@ -26,6 +27,7 @@ export const editorExtensions = [
   LinkPreview,
   Embed,
   NoteImage,
+  NoteLink,
   SmartPaste,
   SearchHighlight,
   Hashtags,

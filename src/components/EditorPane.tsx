@@ -45,6 +45,9 @@ interface Props {
   onToggleStar: () => void;
   /** Dropbox connected: earlier versions can be restored. */
   onHistory?: () => void;
+  /** Notes that link to this one ([[…]]). */
+  backlinks: { id: string; title: string }[];
+  onOpenNote: (id: string) => void;
 }
 
 export default function EditorPane(p: Props) {
@@ -372,6 +375,18 @@ export default function EditorPane(p: Props) {
             }}
           />
           <EditorContent editor={editor} />
+          {p.backlinks.length > 0 && (
+            <div className="backlinks">
+              <span className="backlinks-label">
+                <Icon name="link" size={13} /> Linked from
+              </span>
+              {p.backlinks.map((b) => (
+                <button key={b.id} className="note-link" onClick={() => p.onOpenNote(b.id)}>
+                  {b.title}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

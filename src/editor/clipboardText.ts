@@ -99,7 +99,8 @@ function inline(frag: Fragment, wa: boolean, noBold = false): string {
       return;
     }
     if (!node.isText) {
-      out += node.textContent;
+      // A link to another note copies as its title.
+      out += node.type.name === "noteLink" ? node.attrs.title : node.textContent;
       return;
     }
     let text = node.text ?? "";

@@ -22,6 +22,8 @@ export interface Notebook {
   id: string;
   name: string;
   createdAt: number;
+  /** Name of the stack (group of notebooks) it's in, Evernote-style. */
+  stack?: string;
 }
 
 /** Bookkeeping for Dropbox sync: what was last uploaded/downloaded. */

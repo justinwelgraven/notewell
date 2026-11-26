@@ -228,6 +228,17 @@ body.is-resizing iframe { pointer-events: none; }
 .sb-sub:hover .sb-count { display: none; }
 .sb-sub-menu { width: 22px; height: 22px; border-radius: 4px; display: grid; place-items: center; color: var(--sb-muted); }
 .sb-sub-menu:hover, .sb-sub-menu.is-open { background: #444; color: #fff; }
+/* Notebook stacks: a stack row with its notebooks indented below it. */
+.sb-stack { padding-left: 24px; gap: 6px; }
+.sb-stack-caret { color: var(--sb-muted); flex-shrink: 0; }
+.sb-stack-icon { color: var(--sb-muted); flex-shrink: 0; }
+.sb-sub.is-nested { padding-left: 60px; }
+.sb-sub-actions { display: contents; }
+/* Touch screens have no hover: always show the ⋯ on notebooks, stacks and tags. */
+@media (hover: none) {
+  .sb-sub .dropdown { display: block; }
+  .sb-sub .sb-count { display: none; }
+}
 .sb-empty { padding: 4px 0 6px 42px; font-size: 13px; color: var(--sb-muted); }
 .sb-spacer { flex: 1; min-height: 16px; }
 
@@ -523,6 +534,27 @@ body.is-resizing iframe { pointer-events: none; }
   .ni-wrap .node-actions { opacity: 0; }
   .ni-wrap.is-selected .node-actions { opacity: 1; }
 }
+
+/* ---- Links between notes ([[ ) ---- */
+.note-link {
+  display: inline; padding: 1px 6px; margin: 0 1px; border-radius: 5px; cursor: pointer;
+  background: var(--green-soft); color: var(--green); font-weight: 500; text-decoration: none;
+  font-size: inherit; font-family: inherit; line-height: inherit;
+}
+.note-link::before { content: "↗ "; font-size: 0.85em; opacity: 0.8; }
+.note-link:hover { text-decoration: underline; }
+.note-link.is-missing { background: var(--chip-bg); color: var(--text-3); text-decoration: line-through; cursor: default; }
+.ProseMirror-selectednode.note-link { outline: 2px solid var(--green); }
+.nl-pop {
+  position: fixed; z-index: 300; width: 260px; max-height: 300px; overflow-y: auto;
+  background: var(--float-bg); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: var(--shadow-pop); padding: 4px;
+}
+.nl-pop-head { font-size: 11.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 8px 4px; }
+.nl-pop-item { display: block; width: 100%; text-align: left; padding: 7px 8px; border-radius: 5px; font-size: 13.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nl-pop-item.is-active, .nl-pop-item:hover { background: var(--green-soft); color: var(--green); }
+.backlinks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.backlinks-label { display: inline-flex; align-items: center; gap: 5px; color: var(--text-3); margin-right: 4px; }
 
 /* ---- Search matches (note list and open note) ---- */
 .search-hit { background: #ffe58a; color: inherit; border-radius: 2px; box-shadow: 0 0 0 1px #ffe58a; }

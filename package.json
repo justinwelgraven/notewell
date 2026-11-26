@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "node scripts/vite-build.mjs",
     "build:web": "node scripts/vite-build.mjs --outDir web --emptyOutDir",
-    "tauri": "node scripts/tauri.mjs"
+    "tauri": "node scripts/tauri.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.5",
@@ -24,6 +25,7 @@
     "@tiptap/pm": "^3.35.0",
     "@tiptap/react": "^3.35.0",
     "@tiptap/starter-kit": "^3.35.0",
+    "@tiptap/suggestion": "^3.35.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
@@ -33,6 +35,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.2"
   }
 }

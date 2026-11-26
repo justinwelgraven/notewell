@@ -63,6 +63,24 @@ async function loadViaService(url: string): Promise<LinkMeta> {
   };
 }
 
+/**
+ * A simple card built from the link itself, for when no preview is available (preview service's daily
+ * limit reached, site blocks previews, offline): readable title from the address, the site's name
+ * and its icon.
+ */
+export function basicMeta(url: string): LinkMeta {
+  let title: string | null = null;
+  let favicon: string | null = null;
+  try {
+    const u = new URL(url);
+    favicon = `${u.origin}/favicon.ico`;
+    const last = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "");
+    const words = last.replace(/\.(html?|php|aspx?)$/i, "").replace(/[-_+]+/g, " ").trim();
+    if (words && /[a-z]/i.test(words) && !/^\d+$/.test(words)) title = words.charAt(0).toUpperCase() + words.slice(1);
+  } catch {}
+  return { title: clip(title, 160), description: null, image: null, siteName: hostname(url), favicon };
+}
+
 async function load(url: string): Promise<LinkMeta> {
   if (!isTauri) return loadViaService(url);
   const { html, final_url } = await fetchPage(url);

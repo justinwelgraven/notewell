@@ -218,7 +218,7 @@ export function mergeNotebooks(d: AppData, remote: NotebooksFile): AppData {
       : merged[0].id;
 
   const sig = (list: Notebook[], del: string[]) =>
-    JSON.stringify([list.map((n) => [n.id, n.name]).sort(), [...del].sort()]);
+    JSON.stringify([list.map((n) => [n.id, n.name, n.stack ?? ""]).sort(), [...del].sort()]);
   const sameAsRemote = sig(merged, deleted) === sig(remote.notebooks.filter((n) => !deleted.includes(n.id)), remote.deleted ?? []);
   // If our merge added something the remote file doesn't have, mark it as newer so it gets uploaded.
   const notebooksUpdatedAt = sameAsRemote ? remote.updatedAt : Math.max(Date.now(), localAt, remote.updatedAt + 1);

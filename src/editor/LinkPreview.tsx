@@ -1,7 +1,10 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useState } from "react";
-import { fetchLinkMeta } from "../lib/metadata";
+import { basicMeta, fetchLinkMeta } from "../lib/metadata";
+
+/** Links already re-tried this session (simple cards upgrade to a full preview at most once). */
+const retried = new Set<string>();
 import { hostname } from "../lib/embeds";
 import { openExternal } from "../lib/storage";
 import { Icon } from "../components/Icon";
@@ -50,7 +53,11 @@ function LinkPreviewView({ node, editor, getPos, selected, deleteNode }: NodeVie
   const [iconOk, setIconOk] = useState(true);
 
   useEffect(() => {
-    if (status !== "loading" || !url) return;
+    // "basic" = only the simple card could be made earlier: try for a full preview again (once per
+    // link per session) — e.g. the preview service's daily limit has reset by now.
+    const retry = (status === "basic" || status === "error") && !!url && !retried.has(url) && navigator.onLine;
+    if ((status !== "loading" && !retry) || !url) return;
+    if (retry) retried.add(url);
     let cancelled = false;
     const apply = (attrs: Record<string, unknown>) => {
       if (cancelled) return;
@@ -64,7 +71,10 @@ function LinkPreviewView({ node, editor, getPos, selected, deleteNode }: NodeVie
     };
     fetchLinkMeta(url)
       .then((meta) => apply({ ...meta, status: "ready" }))
-      .catch(() => apply({ status: "error", siteName: hostname(url) }));
+      .catch(() => {
+        // No full preview: show a simple card (only when it's still loading — never replace a good one).
+        if (status === "loading") apply({ ...basicMeta(url), status: "basic" });
+      });
     return () => {
       cancelled = true;
     };

@@ -52,6 +52,9 @@ jobs:
 
       - run: npm ci
 
+      # Sync/merge rules must pass before anything is released.
+      - run: npm test
+
       - name: Set version 0.1.${{ github.run_number }}
         run: node scripts/set-version.mjs 0.1.${{ github.run_number }}
 

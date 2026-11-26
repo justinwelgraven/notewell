@@ -39,7 +39,14 @@ User-facing docs, setup and build steps: **README.md**.
   Outside changes (sync, quick note, restore) bump `rev` → content replaced in place, keeping cursor/keyboard (no remount).
 - Star/pin change `updatedAt` by +1 ms so sync uploads them without reordering the list.
 - Sync downloads/uploads 6 at a time (`pool` in engine.ts). Version history = Dropbox `files/list_revisions` + download `rev:<rev>`.
-- Web link previews: Microlink API (desktop fetches pages natively).
+- Web link previews: Microlink API (desktop fetches pages natively). No preview (limit / blocked / offline) → simple card from
+  the URL (`basicMeta`, status "basic"), retried for a full preview once per session.
+- Tests: `npm test` (Vitest) — `src/sync/merge.test.ts` (sync + three-way merge), `src/lib/organize.test.ts` (tags, stacks).
+  Both GitHub workflows run them before releasing/publishing.
+- Tags/stacks: `src/lib/organize.ts`. Renaming/deleting a tag also rewrites `#tag` in note text (else Hashtags re-adds it).
+  Notebook `stack` is synced through notebooks.json (the notebooks merge signature includes it).
+- Note links: inline node `noteLink` (`src/editor/NoteLink.ts`, `[[` via @tiptap/suggestion); App supplies the note list
+  (`setNoteLinkSource`) and handles `notewell:open-note`; backlinks via `linkedNoteIds` (cached per content object).
 - Window keystroke tests: don't send keystrokes to the desktop app with SendKeys — they can land in the user's active window. Use the browser preview for UI/key tests.
 
 ## Releasing

@@ -13,6 +13,9 @@ Built with [Tauri 2](https://tauri.app) (native shell) + React + [TipTap](https:
 - Version history (note's ⋯ menu, with Dropbox): see and restore earlier versions of a note
 - Backup & export (Settings): one backup file with every note and picture, a readable Markdown export, and "Restore from backup" (adds missing notes, never deletes)
 - Trash empties itself after 30 days
+- Links between notes: type `[[` and pick a note; the note you link to shows "Linked from" at the bottom
+- Tags: rename or delete a tag everywhere (⋯ next to the tag in the sidebar, or double-click it)
+- Notebook stacks: ⋯ next to a notebook → Add to stack… groups notebooks, Evernote-style
 - Paste a website link → preview card (title, description, image). On the web/iPhone version the preview comes from Microlink (a public link-preview service, which sees the pasted link)
 - Paste a YouTube or Spotify link → embedded player
 - Ctrl+Shift+V pastes a link as plain text instead

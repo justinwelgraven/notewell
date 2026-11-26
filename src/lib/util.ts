@@ -39,6 +39,7 @@ export function docText(node: JSONContent | null | undefined): string {
   if (!node) return "";
   if (node.type === "text") return node.text ?? "";
   if (node.type === "hardBreak") return "\n";
+  if (node.type === "noteLink") return node.attrs?.title ?? "";
   const inner = (node.content ?? []).map(docText);
   const isBlockContainer = (node.content ?? []).some((c) => c.type !== "text" && c.type !== "hardBreak");
   return inner.join(isBlockContainer ? "\n" : "");

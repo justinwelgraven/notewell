@@ -35,6 +35,8 @@ import { saveFile } from "./lib/storage";
 import { makeBackup, makeMarkdown, restoreBackup } from "./lib/backup";
 import type { BackupUi } from "./components/Sidebar";
 import HistoryDialog from "./components/HistoryDialog";
+import { linkedNoteIds, setCurrentNoteForLinks, setNoteLinkSource } from "./editor/NoteLink";
+import { deleteTag, removeStack, renameStack, renameTag, setNotebookStack, stacksOf } from "./lib/organize";
 
 export interface SyncUi {
   dropbox: DropboxStatus;
@@ -69,7 +71,11 @@ type Dialog =
   | { kind: "renameNotebook"; id: string }
   | { kind: "deleteNotebook"; id: string }
   | { kind: "deleteNote"; id: string }
-  | { kind: "emptyTrash" };
+  | { kind: "emptyTrash" }
+  | { kind: "stackNotebook"; id: string }
+  | { kind: "renameStack"; stack: string }
+  | { kind: "renameTag"; tag: string }
+  | { kind: "deleteTag"; tag: string };
 
 export default function App() {
   const [data, setData] = useState<AppData | null>(null);
@@ -306,6 +312,36 @@ export default function App() {
   }, [visibleNotes]);
 
   const selected = data?.notes.find((n) => n.id === selectedId) ?? null;
+
+  // ---- Links between notes ("[[") ----
+  useEffect(() => {
+    setNoteLinkSource(() => (dataRef.current?.notes ?? []).map((n) => ({ id: n.id, title: n.title, trashed: n.trashedAt !== null })));
+  }, []);
+  useEffect(() => setCurrentNoteForLinks(selectedId), [selectedId]);
+  const openNote = useCallback((id: string) => {
+    const target = dataRef.current?.notes.find((n) => n.id === id);
+    if (!target) return;
+    window.dispatchEvent(new Event("notewell:flush-editor"));
+    setSearch("");
+    setView(target.trashedAt !== null ? { kind: "trash" } : { kind: "all" });
+    setSelectedId(id);
+    setMobilePane("editor");
+  }, []);
+  useEffect(() => {
+    const onOpen = (e: Event) => openNote((e as CustomEvent<string>).detail);
+    window.addEventListener("notewell:open-note", onOpen);
+    return () => window.removeEventListener("notewell:open-note", onOpen);
+  }, [openNote]);
+  /** Notes that link to the open note (shown as "Linked from" under it). */
+  const backlinks = useMemo(
+    () =>
+      selected && data
+        ? data.notes
+            .filter((n) => n.id !== selected.id && n.trashedAt === null && linkedNoteIds(n.content).includes(selected.id))
+            .map((n) => ({ id: n.id, title: n.title.trim() || "Untitled" }))
+        : [],
+    [data?.notes, selected?.id],
+  );
 
   // ---- Actions ----
   const updateNote = useCallback((id: string, patch: Partial<Note>) => {
@@ -644,6 +680,12 @@ export default function App() {
           onNewNotebook={() => setDialog({ kind: "newNotebook" })}
           onRenameNotebook={(id) => setDialog({ kind: "renameNotebook", id })}
           onDeleteNotebook={(id) => setDialog({ kind: "deleteNotebook", id })}
+          onStackNotebook={(id) => setDialog({ kind: "stackNotebook", id })}
+          onUnstackNotebook={(id) => setData((d) => d && setNotebookStack(d, id, null))}
+          onRenameStack={(stack) => setDialog({ kind: "renameStack", stack })}
+          onRemoveStack={(stack) => setData((d) => d && removeStack(d, stack))}
+          onRenameTag={(tag) => setDialog({ kind: "renameTag", tag })}
+          onDeleteTag={(tag) => setDialog({ kind: "deleteTag", tag })}
           allTags={allTags}
           searchRef={searchRef}
           width={compact ? undefined : sbWidth}
@@ -695,6 +737,8 @@ export default function App() {
         <EditorPane
           key={selected.id}
           rev={quickRev[selected.id] ?? 0}
+          backlinks={backlinks}
+          onOpenNote={openNote}
           search={search}
           onToggleStar={() => toggleFlag(selected.id, "starred")}
           onTogglePin={() => toggleFlag(selected.id, "pinned")}
@@ -884,6 +928,71 @@ export default function App() {
           onConfirm={() => {
             const id = dialog.id;
             setData((d) => d && removeNotes(d, [id]));
+            setDialog(null);
+          }}
+        />
+      )}
+      {dialog?.kind === "stackNotebook" && (
+        <PromptDialog
+          title={`Add “${nbName(dialog.id)}” to a stack`}
+          label="Stack name (pick an existing one or type a new name)"
+          placeholder="e.g. Work"
+          initial={data.notebooks.find((nb) => nb.id === dialog.id)?.stack ?? ""}
+          suggestions={stacksOf(data)}
+          confirmText="Add to stack"
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            setData((d) => d && setNotebookStack(d, dialog.id, name));
+            setDialog(null);
+          }}
+        />
+      )}
+      {dialog?.kind === "renameStack" && (
+        <PromptDialog
+          title="Rename stack"
+          label="Name"
+          initial={dialog.stack}
+          confirmText="Rename"
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            setData((d) => d && renameStack(d, dialog.stack, name));
+            setDialog(null);
+          }}
+        />
+      )}
+      {dialog?.kind === "renameTag" && (
+        <PromptDialog
+          title={`Rename tag “${dialog.tag}”`}
+          label="New name (an existing tag's name merges the two)"
+          initial={dialog.tag}
+          suggestions={allTags.filter((t) => t !== dialog.tag)}
+          confirmText="Rename"
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            window.dispatchEvent(new Event("notewell:flush-editor"));
+            const to = name.replace(/^#/, "").trim();
+            setTimeout(() => {
+              setData((d) => d && renameTag(d, dialog.tag, to));
+              bumpRev(data.notes.filter((n) => n.tags.includes(dialog.tag)).map((n) => n.id));
+              if (view.kind === "tag" && view.tag === dialog.tag) setView({ kind: "tag", tag: to });
+            }, 40);
+            setDialog(null);
+          }}
+        />
+      )}
+      {dialog?.kind === "deleteTag" && (
+        <ConfirmDialog
+          title={`Delete tag “${dialog.tag}”?`}
+          message="The tag is removed from every note. The notes themselves stay; a #tag in the text becomes plain text."
+          confirmText="Delete tag"
+          onCancel={() => setDialog(null)}
+          onConfirm={() => {
+            window.dispatchEvent(new Event("notewell:flush-editor"));
+            setTimeout(() => {
+              setData((d) => d && deleteTag(d, dialog.tag));
+              bumpRev(data.notes.filter((n) => n.tags.includes(dialog.tag)).map((n) => n.id));
+              if (view.kind === "tag" && view.tag === dialog.tag) setView({ kind: "all" });
+            }, 40);
             setDialog(null);
           }}
         />

@@ -99,7 +99,17 @@ function marks(text: string, m: JSONContent["marks"]): string {
 }
 
 function inline(nodes: JSONContent[] | undefined): string {
-  return (nodes ?? []).map((n) => (n.type === "text" ? marks(n.text ?? "", n.marks) : n.type === "hardBreak" ? "  \n" : inline(n.content))).join("");
+  return (nodes ?? [])
+    .map((n) =>
+      n.type === "text"
+        ? marks(n.text ?? "", n.marks)
+        : n.type === "hardBreak"
+          ? "  \n"
+          : n.type === "noteLink"
+            ? `[[${n.attrs?.title ?? ""}]]`
+            : inline(n.content),
+    )
+    .join("");
 }
 
 function block(n: JSONContent, indent = ""): string[] {

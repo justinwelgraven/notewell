@@ -19,6 +19,12 @@ interface Props {
   onNewNotebook: () => void;
   onRenameNotebook: (id: string) => void;
   onDeleteNotebook: (id: string) => void;
+  onStackNotebook: (id: string) => void;
+  onUnstackNotebook: (id: string) => void;
+  onRenameStack: (stack: string) => void;
+  onRemoveStack: (stack: string) => void;
+  onRenameTag: (tag: string) => void;
+  onDeleteTag: (tag: string) => void;
   allTags: string[];
   searchRef: React.RefObject<HTMLInputElement | null>;
   width?: number;
@@ -241,6 +247,52 @@ export default function Sidebar(p: Props) {
   const trashCount = p.data.notes.length - live.length;
   const is = (v: View) => JSON.stringify(v) === JSON.stringify(p.view);
   const notebooks = [...p.data.notebooks].sort((a, b) => a.name.localeCompare(b.name));
+  const tagCount = (t: string) => live.filter((n) => n.tags.includes(t)).length;
+  // Notebooks and stacks, sorted together by name (Evernote-style); a stack lists its notebooks.
+  const groups: { stack: string | null; name: string; notebooks: typeof notebooks }[] = [];
+  for (const nb of notebooks) {
+    if (!nb.stack) groups.push({ stack: null, name: nb.name, notebooks: [nb] });
+    else {
+      const g = groups.find((x) => x.stack === nb.stack);
+      if (g) g.notebooks.push(nb);
+      else groups.push({ stack: nb.stack, name: nb.stack, notebooks: [nb] });
+    }
+  }
+  groups.sort((a, b) => a.name.localeCompare(b.name));
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("notewell-stacks-closed") ?? "[]")));
+  const toggleStack = (s: string) =>
+    setCollapsed((c) => {
+      const next = new Set(c);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      localStorage.setItem("notewell-stacks-closed", JSON.stringify([...next]));
+      return next;
+    });
+
+  const notebookRow = (nb: (typeof notebooks)[number], nested: boolean) => (
+    <div
+      key={nb.id}
+      className={`sb-item sb-sub${nested ? " is-nested" : ""}${is({ kind: "notebook", id: nb.id }) ? " is-active" : ""}`}
+      onClick={() => p.onView({ kind: "notebook", id: nb.id })}
+      onDoubleClick={() => p.onRenameNotebook(nb.id)}
+    >
+      <span className="sb-sub-name">{nb.name}</span>
+      <span className="sb-count">{countIn(nb.id)}</span>
+      <span className="sb-sub-actions" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <Dropdown trigger={<Icon name="more" size={14} />} triggerClassName="sb-sub-menu" align="right" title="Notebook actions">
+        {(close) => (
+          <>
+            <MenuItem onSelect={() => { close(); p.onRenameNotebook(nb.id); }}>Rename notebook</MenuItem>
+            <MenuItem onSelect={() => { close(); p.onStackNotebook(nb.id); }}>{nb.stack ? "Move to another stack…" : "Add to stack…"}</MenuItem>
+            {nb.stack && <MenuItem onSelect={() => { close(); p.onUnstackNotebook(nb.id); }}>Remove from stack</MenuItem>}
+            <MenuItem danger onSelect={() => { close(); p.onDeleteNotebook(nb.id); }}>
+              Delete notebook
+            </MenuItem>
+          </>
+        )}
+      </Dropdown></span>
+    </div>
+  );
 
   return (
     <aside className="sidebar" style={{ width: p.width }}>
@@ -322,30 +374,30 @@ export default function Sidebar(p: Props) {
             </button>
           </div>
           {nbOpen &&
-            notebooks.map((nb) => (
-              <div
-                key={nb.id}
-                className={`sb-item sb-sub${is({ kind: "notebook", id: nb.id }) ? " is-active" : ""}`}
-                onClick={() => p.onView({ kind: "notebook", id: nb.id })}
-                onDoubleClick={() => p.onRenameNotebook(nb.id)}
-              >
-                <span className="sb-sub-name">{nb.name}</span>
-                <span className="sb-count">{countIn(nb.id)}</span>
-                <Dropdown trigger={<Icon name="more" size={14} />} triggerClassName="sb-sub-menu" align="right" title="Notebook actions">
-                  {(close) => (
-                    <>
-                      <MenuItem onSelect={() => { close(); p.onRenameNotebook(nb.id); }}>Rename notebook</MenuItem>
-                      <MenuItem
-                        danger
-                        onSelect={() => { close(); p.onDeleteNotebook(nb.id); }}
-                      >
-                        Delete notebook
-                      </MenuItem>
-                    </>
-                  )}
-                </Dropdown>
-              </div>
-            ))}
+            groups.map((g) =>
+              g.stack === null ? (
+                notebookRow(g.notebooks[0], false)
+              ) : (
+                <div key={`stack:${g.stack}`}>
+                  <div className="sb-item sb-sub sb-stack" onClick={() => toggleStack(g.stack!)}>
+                    <Icon name={collapsed.has(g.stack) ? "chevronRight" : "chevronDown"} size={12} className="sb-stack-caret" />
+                    <Icon name="stack" size={15} className="sb-stack-icon" />
+                    <span className="sb-sub-name">{g.stack}</span>
+                    <span className="sb-count">{g.notebooks.reduce((s, nb) => s + countIn(nb.id), 0)}</span>
+                    <span className="sb-sub-actions" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                    <Dropdown trigger={<Icon name="more" size={14} />} triggerClassName="sb-sub-menu" align="right" title="Stack actions">
+                      {(close) => (
+                        <>
+                          <MenuItem onSelect={() => { close(); p.onRenameStack(g.stack!); }}>Rename stack</MenuItem>
+                          <MenuItem onSelect={() => { close(); p.onRemoveStack(g.stack!); }}>Remove stack (keeps notebooks)</MenuItem>
+                        </>
+                      )}
+                    </Dropdown></span>
+                  </div>
+                  {!collapsed.has(g.stack) && g.notebooks.map((nb) => notebookRow(nb, true))}
+                </div>
+              ),
+            )}
         </div>
 
         <div className="sb-group">
@@ -361,13 +413,24 @@ export default function Sidebar(p: Props) {
               <div className="sb-empty">No tags yet</div>
             ) : (
               p.allTags.map((t) => (
-                <button
+                <div
                   key={t}
                   className={`sb-item sb-sub${is({ kind: "tag", tag: t }) ? " is-active" : ""}`}
                   onClick={() => p.onView({ kind: "tag", tag: t })}
+                  onDoubleClick={() => p.onRenameTag(t)}
                 >
                   <span className="sb-sub-name">{t}</span>
-                </button>
+                  <span className="sb-count">{tagCount(t)}</span>
+                  <span className="sb-sub-actions" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                  <Dropdown trigger={<Icon name="more" size={14} />} triggerClassName="sb-sub-menu" align="right" title="Tag actions">
+                    {(close) => (
+                      <>
+                        <MenuItem onSelect={() => { close(); p.onRenameTag(t); }}>Rename tag</MenuItem>
+                        <MenuItem danger onSelect={() => { close(); p.onDeleteTag(t); }}>Delete tag</MenuItem>
+                      </>
+                    )}
+                  </Dropdown></span>
+                </div>
               ))
             ))}
         </div>

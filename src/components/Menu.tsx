@@ -87,6 +87,7 @@ export function PromptDialog({
   confirmText = "OK",
   onConfirm,
   onCancel,
+  suggestions,
 }: {
   title: string;
   label?: string;
@@ -95,6 +96,8 @@ export function PromptDialog({
   confirmText?: string;
   onConfirm: (value: string) => void;
   onCancel: () => void;
+  /** Choices offered while typing (e.g. existing stack names). */
+  suggestions?: string[];
 }) {
   const [value, setValue] = useState(initial);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -116,12 +119,18 @@ export function PromptDialog({
           className="modal-input"
           value={value}
           placeholder={placeholder}
+          list={suggestions?.length ? "prompt-suggestions" : undefined}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
             if (e.key === "Escape") onCancel();
           }}
         />
+        {!!suggestions?.length && (
+          <datalist id="prompt-suggestions">
+            {suggestions.map((s) => <option key={s} value={s} />)}
+          </datalist>
+        )}
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={!value.trim()}>{confirmText}</button>
