@@ -1,6 +1,6 @@
 # Builds and publishes Notewell for Mac (Apple Silicon + Intel) and Windows on every push to main.
 # Each run becomes a GitHub release "v0.1.<run number>"; the desktop apps find it through
-# latest.json and offer "Restart to update". (The web version is published by Netlify separately.)
+# latest.json and offer "Restart to update". (The web version is published by web.yml to GitHub Pages.)
 #
 # Needs one repository secret (Settings → Secrets and variables → Actions):
 #   TAURI_SIGNING_PRIVATE_KEY = contents of ~/.tauri/notewell.key on the Windows PC
@@ -21,6 +21,8 @@ concurrency:
 
 jobs:
   release:
+    # Commits marked "[web only]" just update the web version (web.yml) — no new desktop release.
+    if: ${{ !contains(github.event.head_commit.message, '[web only]') }}
     strategy:
       fail-fast: false
       matrix:

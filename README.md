@@ -107,14 +107,11 @@ The same app runs in Safari and can be added to the iPhone home screen. It syncs
 
 **Build it:** `npm run build:web` → the `web` folder (a handful of static files).
 
-**Put it online (free, one-time ~5 min) — e.g. with Netlify:**
-1. Create a free account at <https://app.netlify.com>.
-2. Go to <https://app.netlify.com/drop> and drag the **`web`** folder onto the page.
-3. You get an address like `https://something-random.netlify.app`. In **Site configuration → Change site name** you can make it e.g. `https://notewell-justin.netlify.app`.
-4. Updating later: in the site's **Deploys** tab, drag the new `web` folder onto it.
+**Online at:** <https://justinwelgraven.github.io/notewell/> — published automatically by GitHub Pages
+(`.github/workflows/web.yml`) on every push. Free, no ads or badges.
 
-**Let Dropbox accept sign-ins from the web version:** in your Dropbox app (<https://www.dropbox.com/developers/apps>) → **Settings → Redirect URIs**, add your site's address **with a trailing slash**, e.g. `https://notewell-justin.netlify.app/`.
-
+**Let Dropbox accept sign-ins from the web version:** in your Dropbox app (<https://www.dropbox.com/developers/apps>) → **Settings → Redirect URIs**,
+add `https://justinwelgraven.github.io/notewell/` (with the trailing slash).
 **On the iPhone:**
 1. Open the address in **Safari**.
 2. Tap **Share → Add to Home Screen**. Open Notewell from the home screen icon from now on (it then runs full-screen, and iOS keeps its data safe).
@@ -129,7 +126,8 @@ Notes on the web version:
 Every push to GitHub (`main`):
 - **GitHub Actions** (`.github/workflows/build.yml`) builds Mac + Windows, numbers it `0.1.<build>` and publishes a release.
   Installed desktop apps check at startup and every 6 hours and show **"Restart to update"**.
-- **Netlify** rebuilds and publishes the web version (`netlify.toml`).
+- **GitHub Pages** rebuilds and publishes the web version (`.github/workflows/web.yml`).
+  Put **[web only]** in a commit message to update just the web version without a new desktop release.
 
 Updates are signed. The private key is `%USERPROFILE%\.tauri\notewell.key` on the Windows PC (never in Dropbox or Git) —
 **keep a backup of it** (e.g. in a password manager). Without it, installed apps can't be updated anymore and would need a reinstall.
