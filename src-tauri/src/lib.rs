@@ -100,8 +100,10 @@ const QUICK_W: f64 = 460.0;
 const QUICK_H: f64 = 540.0;
 
 /// Opens the small always-on-top quick note window, or brings it forward if already open.
+/// Must be `async`: on Windows, creating a window from a synchronous command deadlocks the app
+/// (the menu button hung Notewell; the shortcut and tray menu don't go through a command).
 #[tauri::command]
-fn open_quick_note(app: AppHandle) {
+async fn open_quick_note(app: AppHandle) {
     show_quick_note(&app);
 }
 
