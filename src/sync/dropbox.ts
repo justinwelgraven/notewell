@@ -5,8 +5,10 @@
 import { isTauri } from "../lib/storage";
 import {
   completeWebSignIn,
+  cancelCodeSignIn,
   finishWebSignInWithCode,
   isHomeScreenApp,
+  pendingCodeSignIn,
   restoreWebAuth,
   startCodeSignIn,
   startWebSignIn,
@@ -16,7 +18,7 @@ import {
   webStatus,
 } from "./dropboxWeb";
 
-export { completeWebSignIn, finishWebSignInWithCode, restoreWebAuth };
+export { cancelCodeSignIn, completeWebSignIn, finishWebSignInWithCode, pendingCodeSignIn, restoreWebAuth };
 
 /** Returned by connectDropbox when the user must paste the code Dropbox shows (iPhone Home Screen app). */
 export const NEEDS_CODE = "__needs_code__";

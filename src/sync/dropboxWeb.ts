@@ -81,8 +81,23 @@ export function startWebSignIn(appKey: string, verifier: string, authUrl: string
  * and shows a code instead; the user pastes it into Notewell (finishWebSignInWithCode).
  */
 export function startCodeSignIn(appKey: string, verifier: string, authUrl: string) {
-  localStorage.setItem(PENDING_KEY, JSON.stringify({ appKey, verifier, redirectUri: null }));
-  window.open(authUrl, "_blank");
+  // No window.open here: iOS blocks pop-ups that aren't opened directly by a tap. The dialog shows
+  // an "Open Dropbox" link the user taps instead. Kept in localStorage so the step survives iOS
+  // pausing or restarting the app while the user is on Dropbox's page.
+  localStorage.setItem(PENDING_KEY, JSON.stringify({ appKey, verifier, redirectUri: null, url: authUrl, at: Date.now() }));
+}
+
+/** A Home Screen sign-in waiting for its code (started less than 30 minutes ago), or null. */
+export function pendingCodeSignIn(): { url: string } | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(PENDING_KEY) || "null");
+    if (p?.url && Date.now() - (p.at ?? 0) < 30 * 60 * 1000) return { url: p.url };
+  } catch {}
+  return null;
+}
+
+export function cancelCodeSignIn() {
+  localStorage.removeItem(PENDING_KEY);
 }
 
 export async function finishWebSignInWithCode(code: string): Promise<string> {

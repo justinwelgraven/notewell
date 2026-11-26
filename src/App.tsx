@@ -17,11 +17,14 @@ import {
   dropboxStatus,
   finishWebSignInWithCode,
   NEEDS_CODE,
+  cancelCodeSignIn,
+  pendingCodeSignIn,
   restoreWebAuth,
   type DropboxStatus,
 } from "./sync/dropbox";
 import { dedupeStarterNotebooks, removeNotes } from "./sync/merge";
 import ShortcutsDialog from "./components/ShortcutsDialog";
+import DropboxCodeDialog from "./components/DropboxCodeDialog";
 import NoteActions from "./components/NoteActions";
 import Rail from "./components/Rail";
 import { syncLabel } from "./components/Sidebar";
@@ -166,7 +169,8 @@ export default function App() {
   const [dbx, setDbx] = useState<DropboxStatus>({ connected: false, account: null, app_key: null });
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [awaitingCode, setAwaitingCode] = useState(false);
+  // Web (Home Screen app): a Dropbox sign-in waiting for its code — also after iOS restarted the app.
+  const [awaitingCode, setAwaitingCode] = useState(() => !isTauri && !!pendingCodeSignIn());
   const [syncError, setSyncError] = useState<string | null>(null);
   const engineRef = useRef<SyncEngine | null>(null);
 
@@ -718,22 +722,17 @@ export default function App() {
             />
           );
         })()}
-      {awaitingCode && (
-        <PromptDialog
-          key={syncError ?? "code"}
-          title="Finish connecting Dropbox"
-          label={
-            syncError
-              ? `That didn't work (${syncError.slice(0, 80)}). Copy the code again and paste it here.`
-              : "In the Dropbox page that opened, tap Allow, copy the code it shows, then paste it here."
-          }
-          placeholder="Code from Dropbox"
-          confirmText={connecting ? "Connecting…" : "Connect"}
+      {awaitingCode && pendingCodeSignIn() && (
+        <DropboxCodeDialog
+          url={pendingCodeSignIn()!.url}
+          busy={connecting}
+          error={syncError}
+          onSubmit={(code) => syncUi.submitCode(code)}
           onCancel={() => {
+            cancelCodeSignIn();
             setAwaitingCode(false);
             setSyncError(null);
           }}
-          onConfirm={(code) => syncUi.submitCode(code)}
         />
       )}
       {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}

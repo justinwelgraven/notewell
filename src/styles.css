@@ -353,6 +353,11 @@ body.is-resizing iframe { pointer-events: none; }
 .dbx-input { height: 32px; font-size: 13px; font-family: Consolas, monospace; }
 .dbx-err { color: var(--danger) !important; font-size: 12px; overflow-wrap: anywhere; }
 .dbx-actions { display: flex; gap: 6px; }
+.dbx-steps { margin: 0 0 14px; padding-left: 22px; color: var(--text-2); line-height: 1.5; font-size: 14.5px; }
+.dbx-steps li { margin-bottom: 10px; }
+.dbx-steps li.is-done::marker { color: var(--green); }
+.dbx-open { text-decoration: none; height: 40px; padding: 0 18px; font-size: 15px; }
+.dbx-code-err { margin: 8px 0 0; font-size: 13px; }
 .dbx .btn { justify-content: center; }
 .sb-sync {
   display: flex; align-items: center; gap: 8px;

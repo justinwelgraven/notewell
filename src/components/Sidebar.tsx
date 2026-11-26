@@ -75,7 +75,7 @@ function DropboxSection({ sync }: { sync: SyncUi }) {
       <div className="dbx">
         <div className="dbx-text">
           <strong>Almost there</strong>
-          <small>Dropbox opened on top. Tap <b>Allow</b>, copy the code it shows, close that page, and paste the code here.</small>
+          <small>Use the <b>Connect Dropbox</b> window: tap <b>Open Dropbox</b>, tap <b>Allow</b>, copy the code and paste it there (or here).</small>
         </div>
         <input
           className="modal-input dbx-input"
