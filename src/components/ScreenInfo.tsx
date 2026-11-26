@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { heightReadings, learnedHeight } from "../lib/viewport";
+import { extraReadings, heightReadings, layoutMode } from "../lib/viewport";
 import { isTauri } from "../lib/storage";
 
 /**
@@ -13,6 +13,7 @@ export default function ScreenInfo() {
     return () => clearInterval(t);
   }, []);
   const r = heightReadings();
+  const x = extraReadings();
   const app = document.querySelector(".app")?.getBoundingClientRect();
   const standalone =
     (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia("(display-mode: standalone)").matches;
@@ -23,8 +24,9 @@ export default function ScreenInfo() {
         <div>
           {standalone ? "Home Screen app" : "Browser tab"} · {r.portrait ? "portrait" : "landscape"} · width {r.width}
           <br />
-          heights: app {app ? Math.round(app.height) : "?"} · inner {r.inner} · client {r.client} · visual {r.visual ?? "–"} · screen{" "}
-          {r.screen ?? `– (${screen.width}×${screen.height})`} · remembered {learnedHeight(r.width) ?? "–"}
+          heights: app {app ? Math.round(app.height) : "?"} · inner {r.inner} · client {r.client} · visual {r.visual ?? "–"} · screen {x.screen}
+          <br />
+          css: vh {x.vh} · svh {x.svh} · lvh {x.lvh} · dvh {x.dvh} · safe top {x.safeTop} · bottom {x.safeBottom} · layout {layoutMode()}
         </div>
       )}
     </div>

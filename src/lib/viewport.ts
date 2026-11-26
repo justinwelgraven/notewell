@@ -3,14 +3,16 @@
  *
  * iOS doesn't shrink the page when the keyboard opens (it slides the page up instead), so while typing
  * the app is sized to the *visible* area (window.visualViewport) to keep the toolbar on screen.
- *
- * But visualViewport can report a stale, tiny height after rotating or folding/unfolding (iPhone Duo),
- * especially when the keyboard was open, and never correct it. So:
- *  - the visible-area height is only used while a text field actually has focus (keyboard really open);
- *    otherwise the full window height is used, which iOS does report correctly after a fold/rotation;
- *  - the size is re-checked every second, so a wrong value can never stick.
+ * The visible-area height can be stale after rotating or folding, so it's only used while a text
+ * field actually has focus; otherwise the best full-height reading is used. Re-checked every second.
  * Results go to --app-height / --app-top (used by .app in styles.css) and html.keyboard-open.
+ *
+ * Known limitation (iPhone Duo, Home Screen app): after rotating, iOS can make the app's whole window
+ * shorter than the screen (all readings agree, e.g. 587 instead of 669, and nothing can be drawn in
+ * the strip below). That can't be fixed from inside the page; folding/unfolding or reopening resets it.
  */
+import { useEffect, useState } from "react";
+
 function isTyping(): boolean {
   const el = document.activeElement as HTMLElement | null;
   if (!el) return false;
@@ -22,7 +24,8 @@ function isTyping(): boolean {
 const isHomeScreen = () =>
   (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia("(display-mode: standalone)").matches;
 
-function isPortrait(): boolean {
+/** Orientation as the device reports it (reliable, unlike heights). */
+export function isPortrait(): boolean {
   const type = screen.orientation?.type;
   if (type) return type.startsWith("portrait");
   const angle = (window as unknown as { orientation?: number }).orientation;
@@ -30,106 +33,55 @@ function isPortrait(): boolean {
   return window.innerWidth <= window.innerHeight;
 }
 
-/** Every height reading the browser offers (some of them go stale after rotating/folding on iOS). */
+/** Measures a CSS length (e.g. "100lvh", "env(safe-area-inset-bottom)") in pixels. */
+function cssLength(value: string, prop: "height" | "paddingTop" = "height"): number | null {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;visibility:hidden;";
+  probe.style[prop] = value;
+  document.body.appendChild(probe);
+  const px = prop === "height" ? probe.getBoundingClientRect().height : parseFloat(getComputedStyle(probe).paddingTop);
+  probe.remove();
+  return Number.isFinite(px) ? Math.round(px) : null;
+}
+
+/** Every height reading the browser offers, for choosing a height and for Screen info. */
 export function heightReadings() {
   const vv = window.visualViewport;
-  const long = Math.max(screen.width, screen.height);
-  const short = Math.min(screen.width, screen.height);
-  const portrait = isPortrait();
-  const screenFits = Math.abs((portrait ? short : long) - window.innerWidth) <= 24;
   return {
     width: window.innerWidth,
-    portrait,
+    portrait: isPortrait(),
     inner: window.innerHeight,
     client: document.documentElement.clientHeight,
     visual: vv ? Math.round(vv.height) : null,
-    screen: isHomeScreen() && screenFits ? (portrait ? long : short) : null,
+  };
+}
+
+/** Extra diagnostics shown in Settings → Screen info. */
+export function extraReadings() {
+  return {
+    vh: cssLength("100vh"),
+    svh: cssLength("100svh"),
+    lvh: cssLength("100lvh"),
+    dvh: cssLength("100dvh"),
+    safeTop: cssLength("env(safe-area-inset-top, 0px)", "paddingTop"),
+    safeBottom: cssLength("env(safe-area-inset-bottom, 0px)", "paddingTop"),
+    homeScreen: isHomeScreen(),
+    screen: `${screen.width}×${screen.height}`,
   };
 }
 
 /**
- * The app's full height when the keyboard is down.
- * iOS can keep an old height after rotating or folding (an empty band, or a squeezed app), but not every
- * reading goes stale at once. The orientation and width are reliable, so pick the reading that fits:
- * in portrait the height must be larger than the width, in landscape smaller.
+ * The app's full height when the keyboard is down. Not every reading goes stale at once on iOS, and
+ * the orientation and width are reliable, so pick the reading that fits: in portrait the height must be
+ * larger than the width, in landscape smaller.
  */
 function fullHeight(): number {
   const r = heightReadings();
-  const values = [r.screen, r.visual, r.inner, r.client].filter((v): v is number => typeof v === "number" && v > 100);
+  const values = [r.visual, r.inner, r.client].filter((v): v is number => typeof v === "number" && v > 100);
   if (!values.length) return window.innerHeight;
-  if (r.screen && !isTyping()) return r.screen; // Home Screen app with a screen that matches: exact
   const fitting = values.filter((v) => (r.portrait ? v > r.width : v < r.width));
-  if (fitting.length) return r.portrait ? Math.max(...fitting) : Math.max(...fitting);
+  if (fitting.length) return Math.max(...fitting);
   return r.portrait ? Math.max(...values) : Math.min(...values);
-}
-
-/*
- * iPhone Duo / iOS bug: after rotating, *every* height reading can be short by the same amount
- * (e.g. 587 instead of 669), leaving an empty band, while a fresh start gets it right. So in the
- * Home Screen app Notewell remembers the real height it saw for each screen width, notices when the
- * readings drop below it, uses the remembered height meanwhile, and reloads once (keeping your place).
- */
-const LEARNED_KEY = "notewell-vp-heights";
-const RELOAD_KEY = "notewell-vp-reloaded-at";
-type Learned = Record<string, number>;
-const readLearned = (): Learned => {
-  try {
-    return JSON.parse(localStorage.getItem(LEARNED_KEY) || "{}");
-  } catch {
-    return {};
-  }
-};
-let learned: Learned = readLearned();
-let staleSince = 0;
-let staleHandler: (() => void) | null = null;
-
-/** App registers what to do when the stale-height bug is detected (save, then reload). */
-export function onStaleViewport(handler: () => void) {
-  staleHandler = handler;
-}
-
-/** Remembered real height for a width (Home Screen app), for Screen info. */
-export function learnedHeight(width: number): number | null {
-  return learned[String(Math.round(width))] ?? null;
-}
-
-/** Returns the height to use, learning good values and flagging the stale-height bug. */
-function checkLearned(measured: number, width: number, typing: boolean): number {
-  if (!isHomeScreen() || typing) {
-    staleSince = 0;
-    return measured;
-  }
-  const key = String(Math.round(width));
-  const known = learned[key];
-  if (!known || measured >= known - 20) {
-    staleSince = 0;
-    if (!known || measured > known) {
-      learned = { ...learned, [key]: measured };
-      localStorage.setItem(LEARNED_KEY, JSON.stringify(learned));
-    }
-    return measured;
-  }
-  // Readings are clearly below what this screen really has: the iOS bug.
-  if (!staleSince) staleSince = Date.now();
-  const lastReload = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
-  if (Date.now() - staleSince > 1200 && Date.now() - lastReload > 30000 && staleHandler) {
-    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
-    staleSince = 0;
-    staleHandler();
-  }
-  return known; // meanwhile, use the remembered real height
-}
-
-/**
- * After rotating, give WebKit a nudge to recompute its layout size: briefly rewriting the viewport
- * setting is a known way to clear its stale size on iOS.
- */
-function nudgeViewport() {
-  const meta = document.querySelector('meta[name="viewport"]');
-  if (!meta) return;
-  const content = meta.getAttribute("content") ?? "";
-  meta.setAttribute("content", content + ", user-scalable=no");
-  requestAnimationFrame(() => meta.setAttribute("content", content));
 }
 
 export function trackVisibleViewport() {
@@ -142,14 +94,14 @@ export function trackVisibleViewport() {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
       const typing = isTyping();
-      const full = checkLearned(fullHeight(), window.innerWidth, typing);
+      const full = fullHeight();
       const visible = vv ? vv.height : full;
       // Keyboard open = typing in a field AND the visible area is clearly shorter than the window.
       // (Never trust a visible height below 30% of the window: that's a stale value, not a keyboard.)
       const keyboard = !!vv && typing && full - visible > 120 && visible > full * 0.3;
       const height = keyboard ? visible : full;
       const top = keyboard ? vv!.offsetTop : 0;
-      // Always compare with what's actually set (not a cached value), so any wrong state gets corrected.
+      // Always compare with what's actually set, so any wrong state gets corrected.
       const h = `${Math.round(height)}px`;
       const t = `${Math.round(top)}px`;
       if (root.style.getPropertyValue("--app-height") !== h) root.style.setProperty("--app-height", h);
@@ -165,7 +117,6 @@ export function trackVisibleViewport() {
   window.addEventListener("resize", update);
   // iOS reports the final size a little after rotating / folding: measure again shortly after.
   const settle = () => {
-    nudgeViewport();
     update();
     setTimeout(update, 250);
     setTimeout(update, 700);
@@ -175,15 +126,51 @@ export function trackVisibleViewport() {
   screen.orientation?.addEventListener?.("change", settle);
   window.addEventListener("pageshow", settle);
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && settle());
-  // Focusing / leaving a field is what opens / closes the keyboard.
-  const remeasure = () => {
-    update();
-    setTimeout(update, 250);
-    setTimeout(update, 700);
-  };
-  document.addEventListener("focusin", remeasure);
-  document.addEventListener("focusout", remeasure);
-  // Safety net: re-check every second while visible (cheap: only writes when something changed).
+  document.addEventListener("focusin", settle);
+  document.addEventListener("focusout", settle);
+  // Safety net: re-check every second while visible (only writes when something changed).
   setInterval(() => document.visibilityState === "visible" && update(), 1000);
   update();
+}
+
+export type LayoutMode = "phone" | "tablet" | "wide";
+
+/**
+ * Which layout fits the screen, decided from the *width* and the device orientation (both reliable on
+ * iOS; heights are not right after launching or rotating):
+ *  - phone (one screen at a time): narrower than 600, or a touch screen held sideways narrower than 900
+ *    (iPhone Duo folded and turned sideways — too small for two panels)
+ *  - tablet (list + note): up to 1099 wide (iPhone Duo unfolded, iPad portrait, narrow window)
+ *  - wide: the full three-column layout
+ */
+export function layoutMode(): LayoutMode {
+  const w = window.innerWidth;
+  const touch = matchMedia("(pointer: coarse)").matches;
+  if (w < 600) return "phone";
+  if (touch && !isPortrait() && w < 900) return "phone";
+  if (w < 1100) return "tablet";
+  return "wide";
+}
+
+export function useLayoutMode(): LayoutMode {
+  const [mode, setMode] = useState<LayoutMode>(layoutMode);
+  useEffect(() => {
+    const check = () => setMode(layoutMode());
+    const late = () => {
+      check();
+      setTimeout(check, 300);
+      setTimeout(check, 900);
+    };
+    window.addEventListener("resize", check);
+    window.addEventListener("orientationchange", late);
+    screen.orientation?.addEventListener?.("change", late);
+    const t = setInterval(check, 1500);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("orientationchange", late);
+      screen.orientation?.removeEventListener?.("change", late);
+      clearInterval(t);
+    };
+  }, []);
+  return mode;
 }
