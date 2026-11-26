@@ -30,6 +30,7 @@ import Rail from "./components/Rail";
 import { syncLabel } from "./components/Sidebar";
 import { checkForUpdate, type AvailableUpdate } from "./lib/updater";
 import { watchWebUpdates } from "./lib/webUpdate";
+import { onStaleViewport } from "./lib/viewport";
 
 export interface SyncUi {
   dropbox: DropboxStatus;
@@ -67,8 +68,18 @@ type Dialog =
 
 export default function App() {
   const [data, setData] = useState<AppData | null>(null);
-  const [view, setView] = useState<View>({ kind: "all" });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // After an automatic reload (iPhone screen-size fix), come back to the same place.
+  const [restored] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem("notewell-ui-restore");
+      sessionStorage.removeItem("notewell-ui-restore");
+      return raw ? (JSON.parse(raw) as { view: View; selectedId: string | null; mobilePane: "list" | "editor" }) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [view, setView] = useState<View>(restored?.view ?? { kind: "all" });
+  const [selectedId, setSelectedId] = useState<string | null>(restored?.selectedId ?? null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>(() => (localStorage.getItem("notewell-sort") as SortMode) || "updated");
   const [focusMode, setFocusMode] = useState(false);
@@ -81,15 +92,30 @@ export default function App() {
   //  - medium (600–1099 px): iPhone Duo unfolded, iPad portrait, narrow window — list + note side by side,
   //    sidebar as a drawer
   //  - wide: the full three-column desktop layout
-  const narrow = useMediaQuery("(max-width: 599px)");
-  const medium = useMediaQuery("(min-width: 600px) and (max-width: 1099px)");
+  // Phone layout also when the screen is low (iPhone Duo folded and turned sideways): too small for two panes.
+  const narrow = useMediaQuery("(max-width: 599px), (max-height: 499px)");
+  const medium = useMediaQuery("(min-width: 600px) and (max-width: 1099px) and (min-height: 500px)");
   const compact = narrow || medium;
   // iPhone Duo unfolded sideways / iPad: a slim icon rail instead of only the ☰ drawer.
   const railWide = useMediaQuery("(min-width: 820px)");
   const showRail = medium && railWide;
   // Long-press / right-click menu on a note in the list.
   const [noteMenu, setNoteMenu] = useState<{ id: string; at: { x: number; y: number } | null } | null>(null);
-  const [mobilePane, setMobilePane] = useState<"list" | "editor">("list");
+  const [mobilePane, setMobilePane] = useState<"list" | "editor">(restored?.mobilePane ?? "list");
+
+  // iPhone: when iOS gets stuck with a too-small screen size after rotating, save and reload once.
+  const uiRef = useRef({ view, selectedId, mobilePane });
+  uiRef.current = { view, selectedId, mobilePane };
+  useEffect(() => {
+    if (isTauri) return;
+    onStaleViewport(async () => {
+      try {
+        if (dataRef.current) await saveData(dataRef.current);
+      } catch {}
+      sessionStorage.setItem("notewell-ui-restore", JSON.stringify(uiRef.current));
+      location.reload();
+    });
+  }, []);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const dataRef = useRef<AppData | null>(null);
   dataRef.current = data;

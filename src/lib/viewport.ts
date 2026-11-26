@@ -63,6 +63,63 @@ function fullHeight(): number {
   return r.portrait ? Math.max(...values) : Math.min(...values);
 }
 
+/*
+ * iPhone Duo / iOS bug: after rotating, *every* height reading can be short by the same amount
+ * (e.g. 587 instead of 669), leaving an empty band, while a fresh start gets it right. So in the
+ * Home Screen app Notewell remembers the real height it saw for each screen width, notices when the
+ * readings drop below it, uses the remembered height meanwhile, and reloads once (keeping your place).
+ */
+const LEARNED_KEY = "notewell-vp-heights";
+const RELOAD_KEY = "notewell-vp-reloaded-at";
+type Learned = Record<string, number>;
+const readLearned = (): Learned => {
+  try {
+    return JSON.parse(localStorage.getItem(LEARNED_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+let learned: Learned = readLearned();
+let staleSince = 0;
+let staleHandler: (() => void) | null = null;
+
+/** App registers what to do when the stale-height bug is detected (save, then reload). */
+export function onStaleViewport(handler: () => void) {
+  staleHandler = handler;
+}
+
+/** Remembered real height for a width (Home Screen app), for Screen info. */
+export function learnedHeight(width: number): number | null {
+  return learned[String(Math.round(width))] ?? null;
+}
+
+/** Returns the height to use, learning good values and flagging the stale-height bug. */
+function checkLearned(measured: number, width: number, typing: boolean): number {
+  if (!isHomeScreen() || typing) {
+    staleSince = 0;
+    return measured;
+  }
+  const key = String(Math.round(width));
+  const known = learned[key];
+  if (!known || measured >= known - 20) {
+    staleSince = 0;
+    if (!known || measured > known) {
+      learned = { ...learned, [key]: measured };
+      localStorage.setItem(LEARNED_KEY, JSON.stringify(learned));
+    }
+    return measured;
+  }
+  // Readings are clearly below what this screen really has: the iOS bug.
+  if (!staleSince) staleSince = Date.now();
+  const lastReload = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
+  if (Date.now() - staleSince > 1200 && Date.now() - lastReload > 30000 && staleHandler) {
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+    staleSince = 0;
+    staleHandler();
+  }
+  return known; // meanwhile, use the remembered real height
+}
+
 /**
  * After rotating, give WebKit a nudge to recompute its layout size: briefly rewriting the viewport
  * setting is a known way to clear its stale size on iOS.
@@ -84,11 +141,12 @@ export function trackVisibleViewport() {
   const update = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
-      const full = fullHeight();
+      const typing = isTyping();
+      const full = checkLearned(fullHeight(), window.innerWidth, typing);
       const visible = vv ? vv.height : full;
       // Keyboard open = typing in a field AND the visible area is clearly shorter than the window.
       // (Never trust a visible height below 30% of the window: that's a stale value, not a keyboard.)
-      const keyboard = !!vv && isTyping() && full - visible > 120 && visible > full * 0.3;
+      const keyboard = !!vv && typing && full - visible > 120 && visible > full * 0.3;
       const height = keyboard ? visible : full;
       const top = keyboard ? vv!.offsetTop : 0;
       // Always compare with what's actually set (not a cached value), so any wrong state gets corrected.

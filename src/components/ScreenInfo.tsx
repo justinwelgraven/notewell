@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { heightReadings } from "../lib/viewport";
+import { heightReadings, learnedHeight } from "../lib/viewport";
 import { isTauri } from "../lib/storage";
 
 /**
@@ -24,7 +24,7 @@ export default function ScreenInfo() {
           {standalone ? "Home Screen app" : "Browser tab"} · {r.portrait ? "portrait" : "landscape"} · width {r.width}
           <br />
           heights: app {app ? Math.round(app.height) : "?"} · inner {r.inner} · client {r.client} · visual {r.visual ?? "–"} · screen{" "}
-          {r.screen ?? `– (${screen.width}×${screen.height})`}
+          {r.screen ?? `– (${screen.width}×${screen.height})`} · remembered {learnedHeight(r.width) ?? "–"}
         </div>
       )}
     </div>
