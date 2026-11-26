@@ -502,7 +502,14 @@ body.is-resizing iframe { pointer-events: none; }
 .ni-wrap { position: relative; margin: 0.8em 0; max-width: 100%; width: fit-content; }
 .ni-wrap.is-small { max-width: 50%; }
 .ni-img { display: block; max-width: 100%; height: auto; border-radius: 8px; }
-.ni-wrap.is-selected .ni-img { box-shadow: 0 0 0 3px var(--green); }
+/* Selection ring: its own layer that fades in/out. (A box-shadow on the picture left green streaks
+   behind in Safari/WebKit on the Mac when it was switched off.) */
+.ni-wrap { isolation: isolate; transform: translateZ(0); }
+.ni-wrap::after {
+  content: ""; position: absolute; inset: -3px; border: 3px solid var(--green); border-radius: 10px;
+  opacity: 0; pointer-events: none; will-change: opacity;
+}
+.ni-wrap.is-selected::after { opacity: 1; }
 .ni-placeholder {
   display: flex; align-items: center; gap: 10px; padding: 18px 16px; border-radius: 8px;
   border: 1px dashed var(--border-2); color: var(--text-3); font-size: 13px; min-width: 240px;
@@ -510,7 +517,7 @@ body.is-resizing iframe { pointer-events: none; }
 .ni-placeholder button { margin-left: auto; color: var(--green); font-weight: 600; font-size: 13px; }
 .ni-wrap:hover .node-actions, .ni-wrap.is-selected .node-actions { opacity: 1; pointer-events: auto; transition-delay: 0s; }
 /* Clicked outside the note body (title, list, …): the picture no longer looks selected. */
-.ProseMirror:not(.ProseMirror-focused) .ni-wrap.is-selected .ni-img { box-shadow: none; }
+.ProseMirror:not(.ProseMirror-focused) .ni-wrap.is-selected::after { opacity: 0; }
 .ProseMirror:not(.ProseMirror-focused) .ni-wrap.is-selected:not(:hover) .node-actions { opacity: 0; pointer-events: none; }
 @media (hover: none) {
   .ni-wrap .node-actions { opacity: 0; }
