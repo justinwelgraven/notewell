@@ -56,7 +56,7 @@ export default function EditorPane(p: Props) {
   const [dialog, setDialog] = useState<null | "link" | "url">(null);
   // Phone: swipe in from the left edge to go back to the list.
   const paneRef = useRef<HTMLElement>(null);
-  useEdgeSwipe(paneRef, () => p.onBack?.(), !!p.onBack);
+  useEdgeSwipe(paneRef, () => p.onBack?.(), !!p.onBack && !dialog, true);
   const tagsRef = useRef(note.tags);
   tagsRef.current = note.tags;
   const tagInputRef = useRef<HTMLInputElement>(null);

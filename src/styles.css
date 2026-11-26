@@ -744,6 +744,10 @@ html.keyboard-open .app.is-compact .nl-items { padding-bottom: 16px; }
 html.keyboard-open .app.is-compact .ep-doc { padding-bottom: 24px; }
 
 /* Phone (and iPhone Duo folded): one screen at a time */
+.app.is-phone { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+.app.is-phone > :is(.notelist, .editor-pane) { grid-area: 1 / 1; }
+.app.is-phone > .notelist { z-index: 0; }
+.app.is-phone > .editor-pane { position: relative; }
 .app.is-phone .notelist { flex: 1; width: 100%; border-right: 0; }
 .app.is-phone .ep-notebook { max-width: 46vw; }
 .app.is-phone .toolbar .dropdown:has(.w-font),

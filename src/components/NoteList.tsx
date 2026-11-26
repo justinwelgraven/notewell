@@ -7,6 +7,7 @@ import { Icon } from "./Icon";
 import { Dropdown, MenuItem } from "./Menu";
 
 interface Props {
+  inert?: boolean;
   title: string;
   icon: string;
   notes: Note[];
@@ -144,7 +145,7 @@ export default function NoteList(p: Props) {
   const pull = usePullToRefresh(p.listRef, () => p.sync?.onSync(), !!p.touch && !!p.sync);
   const press = useLongPress(onNoteMenu);
   return (
-    <section className="notelist" style={{ width: p.width }} ref={sectionRef}>
+    <section className="notelist" inert={p.inert} style={{ width: p.width }} ref={sectionRef}>
       <header className="nl-header">
         <div className="nl-title">
           {p.onMenu && (

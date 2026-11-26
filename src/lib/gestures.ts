@@ -8,7 +8,7 @@ const EDGE = 28; // px from the left edge where a back-swipe may start
 const SWIPE = 70; // px to travel before it counts
 
 /** Swipe in from the left edge of `ref` → `onSwipe` (e.g. back to the list). The element follows the finger. */
-export function useEdgeSwipe(ref: RefObject<HTMLElement | null>, onSwipe: () => void, enabled: boolean) {
+export function useEdgeSwipe(ref: RefObject<HTMLElement | null>, onSwipe: () => void, enabled: boolean, slideAway = false) {
   const cb = useRef(onSwipe);
   cb.current = onSwipe;
   useEffect(() => {
@@ -16,43 +16,76 @@ export function useEdgeSwipe(ref: RefObject<HTMLElement | null>, onSwipe: () => 
     if (!el || !enabled) return;
     let start: { x: number; y: number } | null = null;
     let dx = 0;
-    const reset = () => {
-      el.style.transition = "transform 0.18s ease-out";
-      el.style.transform = "";
+    let dragging = false;
+    let settling: Animation | null = null;
+    let width = 0;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const finish = (commit: boolean) => {
+      if (!start) return;
       start = null;
-      dx = 0;
-    };
-    const down = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (e.touches.length === 1 && t.clientX - el.getBoundingClientRect().left < EDGE) {
-        start = { x: t.clientX, y: t.clientY };
-        el.style.transition = "none";
+      if (!dragging) return;
+      dragging = false;
+      const target = commit && slideAway ? width : 0;
+      const from = el.style.transform;
+      const to = `translate3d(${target}px, 0, 0)`;
+      const complete = () => {
+        if (commit) cb.current();
+      };
+      if (!reduceMotion.matches && from && (slideAway || !commit)) {
+        el.style.transform = to;
+        settling = el.animate([{ transform: from }, { transform: to }], {
+          duration: Math.min(240, 100 + 140 * Math.abs(target - dx) / width),
+          easing: "cubic-bezier(.2,.7,.2,1)",
+        });
+        settling.onfinish = () => {
+          settling = null;
+          if (!target) el.style.transform = "";
+          complete();
+        };
+      } else {
+        el.style.transform = "";
+        complete();
       }
+    };
+    const cancel = () => finish(false);
+    const down = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return cancel();
+      if (settling) return;
+      const t = e.touches[0];
+      const rect = el.getBoundingClientRect();
+      if (t.clientX - rect.left >= EDGE) return;
+      width = rect.width;
+      dx = 0;
+      start = { x: t.clientX, y: t.clientY };
     };
     const move = (e: TouchEvent) => {
       if (!start) return;
       const t = e.touches[0];
-      dx = t.clientX - start.x;
-      if (Math.abs(t.clientY - start.y) > 60 && dx < SWIPE) return reset(); // that's a scroll
-      if (dx > 0) el.style.transform = `translateX(${dx * 0.7}px)`;
+      const x = t.clientX - start.x;
+      const y = Math.abs(t.clientY - start.y);
+      if (!dragging) {
+        if (Math.max(Math.abs(x), y) < 8) return;
+        if (x <= y) return cancel();
+        dragging = true;
+      }
+      if (e.cancelable) e.preventDefault();
+      dx = Math.min(width, Math.max(0, x));
+      if (!reduceMotion.matches) el.style.transform = `translate3d(${dx}px, 0, 0)`;
     };
-    const up = () => {
-      if (!start) return;
-      const done = dx > SWIPE;
-      reset();
-      if (done) cb.current();
-    };
+    const up = () => finish(dx > SWIPE);
     el.addEventListener("touchstart", down, { passive: true });
-    el.addEventListener("touchmove", move, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
     el.addEventListener("touchend", up);
-    el.addEventListener("touchcancel", reset);
+    el.addEventListener("touchcancel", cancel);
     return () => {
       el.removeEventListener("touchstart", down);
       el.removeEventListener("touchmove", move);
       el.removeEventListener("touchend", up);
-      el.removeEventListener("touchcancel", reset);
+      el.removeEventListener("touchcancel", cancel);
+      settling?.cancel();
+      el.style.transform = "";
     };
-  }, [ref, enabled]);
+  }, [ref, enabled, slideAway]);
 }
 
 /** Pull down on a scroll area that's at the top → `onRefresh`. Returns how far it's pulled (for the indicator). */

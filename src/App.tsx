@@ -604,7 +604,7 @@ export default function App() {
 
   // Phone: one screen at a time (list or note); the sidebar slides in as a drawer.
   const showSidebar = compact ? drawerOpen : !focusMode;
-  const showList = narrow ? mobilePane === "list" : !focusMode;
+  const showList = narrow || !focusMode;
   const showEditor = !narrow || mobilePane === "editor";
   const layoutClass = (narrow ? " is-compact is-phone" : medium ? " is-compact is-tablet" : "") + (showRail ? " has-rail" : "");
 
@@ -657,6 +657,7 @@ export default function App() {
       )}
       {showList && (
         <NoteList
+          inert={narrow && showEditor}
           width={compact ? undefined : listWidth}
           onMenu={compact && !showRail ? () => setDrawerOpen(true) : undefined}
           onNewNote={compact && !showRail ? createNote : undefined}
