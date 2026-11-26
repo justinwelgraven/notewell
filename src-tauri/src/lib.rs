@@ -106,6 +106,9 @@ fn enable_mac_spellcheck() {
     use objc2_foundation::{NSString, NSUserDefaults};
     let defaults = NSUserDefaults::standardUserDefaults();
     defaults.setBool_forKey(true, &NSString::from_str("WebContinuousSpellCheckingEnabled"));
+    // Check each piece of text in the language it's written in (English, Dutch, …) instead of one
+    // fixed language — the same as "Automatic by Language" in System Settings.
+    objc2_app_kit::NSSpellChecker::sharedSpellChecker().setAutomaticallyIdentifiesLanguages(true);
 }
 
 #[cfg(all(test, windows))]

@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { getText, getTextSerializersFromSchema } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Note, Notebook } from "../types";
-import { editorExtensions } from "../editor/extensions";
+import { editorExtensions, noteBodyAttributes } from "../editor/extensions";
 import { insertUrlBlock } from "../editor/SmartPaste";
 import { isUrl } from "../lib/embeds";
 import { findThumb, fullDate, relativeDate } from "../lib/util";
@@ -75,7 +75,7 @@ export default function EditorPane(p: Props) {
     content: note.content ?? "",
     editable: !trashed,
     editorProps: {
-      attributes: { spellcheck: "true", class: "note-body" },
+      attributes: noteBodyAttributes,
       clipboardTextSerializer: (slice) => sliceToText(slice, getPrefs().waCopy),
       handleKeyDown: (_view, e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {

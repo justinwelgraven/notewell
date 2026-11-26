@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { emitTo } from "@tauri-apps/api/event";
 import type { Note, Notebook } from "../types";
-import { editorExtensions } from "../editor/extensions";
+import { editorExtensions, noteBodyAttributes } from "../editor/extensions";
 import { sliceToText } from "../editor/clipboardText";
 import { focusBodyStart } from "../editor/focus";
 import { completedHashtags } from "../editor/Hashtags";
@@ -78,7 +78,7 @@ export default function QuickNote() {
   const editor = useEditor({
     extensions: editorExtensions,
     editorProps: {
-      attributes: { spellcheck: "true", class: "note-body" },
+      attributes: noteBodyAttributes,
       clipboardTextSerializer: (slice) => sliceToText(slice, getPrefs().waCopy),
     },
     onUpdate: schedule,

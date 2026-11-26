@@ -12,6 +12,18 @@ import { EvernoteShortcuts } from "./Shortcuts";
 import { NoteImage } from "./NoteImage";
 import { SearchHighlight } from "./SearchHighlight";
 import { NoteLink } from "./NoteLink";
+import { isMac } from "../lib/keys";
+
+/**
+ * Attributes of the note text. On Apple devices the text is *not* marked as English (lang=""), so the
+ * system spell checker detects each sentence's language itself (English and Dutch). Windows checks all
+ * installed spell-check languages regardless, so it keeps the page language.
+ */
+export const noteBodyAttributes: Record<string, string> = {
+  spellcheck: "true",
+  class: "note-body",
+  ...(isMac ? { lang: "" } : {}),
+};
 
 export const editorExtensions = [
   StarterKit.configure({

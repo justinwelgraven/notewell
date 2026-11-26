@@ -50,7 +50,11 @@ User-facing docs, setup and build steps: **README.md**.
 - Spell check English + Dutch: Windows/WebView2 only checks languages in its `spellcheck.dictionaries` pref, so
   `enable_spellcheck_languages` (lib.rs, start of `run()`) adds en-US + nl-NL to
   `%LOCALAPPDATA%\com.notewell.desktop\EBWebView\Default\Preferences` before any webview starts (Rust test included).
-  Mac/iPhone use the system spell checker (automatic language detection; Dutch must be enabled in system settings).
+  Windows needs the language's "Basic typing" feature installed, else WebView2 silently drops that dictionary (Dutch was missing
+  on Justin's PC). Verified on Windows with a test copy driven over WebView2 remote debugging (`--remote-debugging-port`).
+  CAUTION: a test copy under another identifier still shares the Dropbox sign-in (keychain) and syncs — clean up test notes.
+  Mac: `enable_mac_spellcheck` sets WebContinuousSpellCheckingEnabled + NSSpellChecker automaticallyIdentifiesLanguages;
+  on Apple devices the note body has lang="" (`noteBodyAttributes`) so the language is detected per text.
 - Window keystroke tests: don't send keystrokes to the desktop app with SendKeys — they can land in the user's active window. Use the browser preview for UI/key tests.
 
 ## Releasing
