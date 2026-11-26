@@ -6,6 +6,7 @@ import { Dropdown, MenuItem } from "./Menu";
 import { setPrefs, usePrefs, type Theme } from "../lib/prefs";
 import { quitApp } from "../lib/storage";
 import { relativeDate } from "../lib/util";
+import ScreenInfo from "./ScreenInfo";
 import type { SyncUi } from "../App";
 
 interface Props {
@@ -176,6 +177,8 @@ function SettingsPanel({ onQuickNote, sync }: { onQuickNote?: () => void; sync?:
           </MenuItem>
         </>
       )}
+      <div className="menu-sep" />
+      <ScreenInfo />
     </div>
   );
 }

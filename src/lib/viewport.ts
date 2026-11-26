@@ -30,22 +30,49 @@ function isPortrait(): boolean {
   return window.innerWidth <= window.innerHeight;
 }
 
-/**
- * The app's full height when the keyboard is down.
- * In the Home Screen app the app covers the whole screen, so its height follows from the device screen
- * and the current orientation — which iOS reports reliably, unlike the window height, which can keep the
- * old value after rotating (an empty band at the bottom). Only used when it matches the current width,
- * so the folded and unfolded screens of the iPhone Duo are never mixed up.
- */
-function fullHeight(): number {
-  const measured = Math.max(window.innerHeight, document.documentElement.clientHeight);
-  if (!isHomeScreen()) return measured;
+/** Every height reading the browser offers (some of them go stale after rotating/folding on iOS). */
+export function heightReadings() {
+  const vv = window.visualViewport;
   const long = Math.max(screen.width, screen.height);
   const short = Math.min(screen.width, screen.height);
   const portrait = isPortrait();
-  const expectedWidth = portrait ? short : long;
-  const expectedHeight = portrait ? long : short;
-  return Math.abs(expectedWidth - window.innerWidth) <= 24 ? expectedHeight : measured;
+  const screenFits = Math.abs((portrait ? short : long) - window.innerWidth) <= 24;
+  return {
+    width: window.innerWidth,
+    portrait,
+    inner: window.innerHeight,
+    client: document.documentElement.clientHeight,
+    visual: vv ? Math.round(vv.height) : null,
+    screen: isHomeScreen() && screenFits ? (portrait ? long : short) : null,
+  };
+}
+
+/**
+ * The app's full height when the keyboard is down.
+ * iOS can keep an old height after rotating or folding (an empty band, or a squeezed app), but not every
+ * reading goes stale at once. The orientation and width are reliable, so pick the reading that fits:
+ * in portrait the height must be larger than the width, in landscape smaller.
+ */
+function fullHeight(): number {
+  const r = heightReadings();
+  const values = [r.screen, r.visual, r.inner, r.client].filter((v): v is number => typeof v === "number" && v > 100);
+  if (!values.length) return window.innerHeight;
+  if (r.screen && !isTyping()) return r.screen; // Home Screen app with a screen that matches: exact
+  const fitting = values.filter((v) => (r.portrait ? v > r.width : v < r.width));
+  if (fitting.length) return r.portrait ? Math.max(...fitting) : Math.max(...fitting);
+  return r.portrait ? Math.max(...values) : Math.min(...values);
+}
+
+/**
+ * After rotating, give WebKit a nudge to recompute its layout size: briefly rewriting the viewport
+ * setting is a known way to clear its stale size on iOS.
+ */
+function nudgeViewport() {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta) return;
+  const content = meta.getAttribute("content") ?? "";
+  meta.setAttribute("content", content + ", user-scalable=no");
+  requestAnimationFrame(() => meta.setAttribute("content", content));
 }
 
 export function trackVisibleViewport() {
@@ -80,6 +107,7 @@ export function trackVisibleViewport() {
   window.addEventListener("resize", update);
   // iOS reports the final size a little after rotating / folding: measure again shortly after.
   const settle = () => {
+    nudgeViewport();
     update();
     setTimeout(update, 250);
     setTimeout(update, 700);
@@ -90,8 +118,13 @@ export function trackVisibleViewport() {
   window.addEventListener("pageshow", settle);
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && settle());
   // Focusing / leaving a field is what opens / closes the keyboard.
-  document.addEventListener("focusin", settle);
-  document.addEventListener("focusout", settle);
+  const remeasure = () => {
+    update();
+    setTimeout(update, 250);
+    setTimeout(update, 700);
+  };
+  document.addEventListener("focusin", remeasure);
+  document.addEventListener("focusout", remeasure);
   // Safety net: re-check every second while visible (cheap: only writes when something changed).
   setInterval(() => document.visibilityState === "visible" && update(), 1000);
   update();
