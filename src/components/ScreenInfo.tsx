@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { extraReadings, heightReadings, layoutMode } from "../lib/viewport";
+import { bandInfo, extraReadings, heightReadings, layoutMode } from "../lib/viewport";
 import { isTauri } from "../lib/storage";
 
 /**
@@ -27,6 +27,8 @@ export default function ScreenInfo() {
           heights: app {app ? Math.round(app.height) : "?"} · inner {r.inner} · client {r.client} · visual {r.visual ?? "–"} · screen {x.screen}
           <br />
           css: vh {x.vh} · svh {x.svh} · lvh {x.lvh} · dvh {x.dvh} · safe top {x.safeTop} · bottom {x.safeBottom} · status {document.documentElement.classList.contains("side-status") ? "side" : "top"} · layout {layoutMode()}
+          <br />
+          bottom band: seen {bandInfo.seen} · nudged {bandInfo.nudged} · result {bandInfo.after}
         </div>
       )}
     </div>

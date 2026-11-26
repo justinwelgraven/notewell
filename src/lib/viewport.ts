@@ -122,6 +122,34 @@ function sideStatusStrip(envTop: number): boolean {
   return envTop === 0 && isHomeScreen() && isPortrait() && matchMedia("(pointer: coarse)").matches;
 }
 
+/**
+ * iPhone Duo bottom band: after rotating, iOS can give the Home Screen app a window that's ~82 pt
+ * shorter than the screen (100vh still reports the full height), leaving an empty band at the bottom.
+ */
+export const bandInfo = { seen: 0, nudged: 0, after: "–" };
+function hasBottomBand(): boolean {
+  if (!isHomeScreen() || isTyping()) return false;
+  const vh = cssLength("100vh");
+  const band = vh !== null && vh - window.innerHeight > 40;
+  if (band) bandInfo.seen++;
+  return band;
+}
+
+/** Rewrites the viewport settings (and puts them back), which makes WebKit recalculate the window. */
+function nudgeViewport() {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (!meta) return;
+  bandInfo.nudged++;
+  const original = meta.content;
+  meta.content = `${original}, shrink-to-fit=no`;
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      meta.content = original;
+      window.scrollTo(0, 0);
+    }),
+  );
+}
+
 export function trackVisibleViewport() {
   const root = document.documentElement;
   const vv = window.visualViewport;
@@ -166,8 +194,23 @@ export function trackVisibleViewport() {
     setTimeout(update, 700);
     setTimeout(update, 1500);
   };
-  window.addEventListener("orientationchange", settle);
-  screen.orientation?.addEventListener?.("change", settle);
+  // After turning the phone: check for the iPhone Duo's bottom band once things have settled, and if
+  // it's there, nudge iOS to recalculate the window (once per turn — never loops).
+  const rotated = () => {
+    settle();
+    window.clearTimeout(bandTimer);
+    bandTimer = window.setTimeout(() => {
+      if (!hasBottomBand()) return;
+      nudgeViewport();
+      window.setTimeout(() => {
+        bandInfo.after = hasBottomBand() ? "still there" : "fixed";
+        settle();
+      }, 900);
+    }, 1000);
+  };
+  let bandTimer = 0;
+  window.addEventListener("orientationchange", rotated);
+  screen.orientation?.addEventListener?.("change", rotated);
   window.addEventListener("pageshow", settle);
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && settle());
   document.addEventListener("focusin", settle);
