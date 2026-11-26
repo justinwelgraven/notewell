@@ -1,13 +1,24 @@
 /**
- * iPhone (Safari / home-screen app) fixes for the web version.
+ * iPhone (Safari / Home Screen app) sizing for the web version.
  *
- * iOS doesn't shrink the page when the keyboard opens: it slides the whole page up, so the
- * toolbar scrolls out of view. After rotating or folding/unfolding (iPhone Duo) it can also keep
- * a stale height, cutting off the bottom of the app.
+ * iOS doesn't shrink the page when the keyboard opens (it slides the page up instead), so while typing
+ * the app is sized to the *visible* area (window.visualViewport) to keep the toolbar on screen.
  *
- * So the app is sized to the *visible* area (window.visualViewport) and re-measured on every
- * keyboard, rotation and fold change: --app-height / --app-top are used by .app in styles.css.
+ * But visualViewport can report a stale, tiny height after rotating or folding/unfolding (iPhone Duo),
+ * especially when the keyboard was open, and never correct it. So:
+ *  - the visible-area height is only used while a text field actually has focus (keyboard really open);
+ *    otherwise the full window height is used, which iOS does report correctly after a fold/rotation;
+ *  - the size is re-checked every second, so a wrong value can never stick.
+ * Results go to --app-height / --app-top (used by .app in styles.css) and html.keyboard-open.
  */
+function isTyping(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  return tag === "TEXTAREA" || (tag === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color)$/i.test((el as HTMLInputElement).type));
+}
+
 export function trackVisibleViewport() {
   const root = document.documentElement;
   const vv = window.visualViewport;
@@ -17,14 +28,21 @@ export function trackVisibleViewport() {
   const update = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
-      const height = vv ? vv.height : window.innerHeight;
-      const top = vv ? vv.offsetTop : 0;
-      root.style.setProperty("--app-height", `${Math.round(height)}px`);
-      root.style.setProperty("--app-top", `${Math.round(top)}px`);
-      // Keyboard counts as open when it takes a real chunk of the screen.
-      root.classList.toggle("keyboard-open", !!vv && window.innerHeight - vv.height > 120);
+      const full = window.innerHeight;
+      const visible = vv ? vv.height : full;
+      // Keyboard open = typing in a field AND the visible area is clearly shorter than the window.
+      // (Never trust a visible height below 30% of the window: that's a stale value, not a keyboard.)
+      const keyboard = !!vv && isTyping() && full - visible > 120 && visible > full * 0.3;
+      const height = keyboard ? visible : full;
+      const top = keyboard ? vv!.offsetTop : 0;
+      // Always compare with what's actually set (not a cached value), so any wrong state gets corrected.
+      const h = `${Math.round(height)}px`;
+      const t = `${Math.round(top)}px`;
+      if (root.style.getPropertyValue("--app-height") !== h) root.style.setProperty("--app-height", h);
+      if (root.style.getPropertyValue("--app-top") !== t) root.style.setProperty("--app-top", t);
+      if (root.classList.contains("keyboard-open") !== keyboard) root.classList.toggle("keyboard-open", keyboard);
       // Never let the page itself stay scrolled: everything scrolls inside the app.
-      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+      if (!keyboard && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
     });
   };
 
@@ -36,13 +54,16 @@ export function trackVisibleViewport() {
     update();
     setTimeout(update, 250);
     setTimeout(update, 700);
+    setTimeout(update, 1500);
   };
   window.addEventListener("orientationchange", settle);
   screen.orientation?.addEventListener?.("change", settle);
   window.addEventListener("pageshow", settle);
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && settle());
-  // Focusing a field is what opens the keyboard.
+  // Focusing / leaving a field is what opens / closes the keyboard.
   document.addEventListener("focusin", settle);
   document.addEventListener("focusout", settle);
+  // Safety net: re-check every second while visible (cheap: only writes when something changed).
+  setInterval(() => document.visibilityState === "visible" && update(), 1000);
   update();
 }
