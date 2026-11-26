@@ -41,7 +41,7 @@
                     "updater":  {
                                     "pubkey":  "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIwQ0UyM0EwQjdBQUZBQ0QKUldUTitxcTNvQ1BPc1A4dGhVU3gyT2lLamYwNjBFWVVuY1pxTEZtM1FodC9ZcTFuWHlJZE1rbjAK",
                                     "endpoints":  [
-                                                      "https://github.com/GITHUB_USER/notewell/releases/latest/download/latest.json"
+                                                      "https://github.com/justinwelgraven/notewell/releases/latest/download/latest.json"
                                                   ],
                                     "windows":  {
                                                     "installMode":  "passive"
