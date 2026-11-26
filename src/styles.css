@@ -470,6 +470,10 @@ body.is-resizing iframe { pointer-events: none; }
 .embed-youtube .embed-frame { aspect-ratio: 16 / 9; }
 .embed-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
 .embed-block.is-selected .embed-frame { box-shadow: 0 0 0 3px var(--green); }
+/* Players have their own controls in the corners (e.g. Spotify's ✕), so Notewell's buttons sit
+   outside the player: a slim column just to its right. */
+.embed-block { max-width: min(640px, calc(100% - 44px)); }
+.embed-block .node-actions { top: 0; right: -40px; flex-direction: column; }
 
 .node-actions {
   position: absolute; top: 8px; right: 8px;
