@@ -674,7 +674,7 @@ html.vv-tracked .app { touch-action: manipulation; }
 .app.is-compact .sidebar {
   position: fixed; top: 0; bottom: 0; left: 0; z-index: 60;
   width: min(84vw, 300px);
-  padding-top: calc(14px + var(--safe-top, env(safe-area-inset-top)));
+  padding-top: calc(14px + env(safe-area-inset-top));
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
   padding-left: env(safe-area-inset-left);
   animation: drawer-in 0.2s ease-out;
@@ -684,7 +684,7 @@ html.vv-tracked .app { touch-action: manipulation; }
 .drawer-backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, 0.4); animation: fade 0.2s; }
 
 .app.is-compact .notelist { position: relative; }
-.app.is-compact .nl-header { padding: calc(12px + var(--safe-top, env(safe-area-inset-top))) 16px 0 calc(16px + env(safe-area-inset-left)); }
+.app.is-compact .nl-header { padding: calc(12px + env(safe-area-inset-top)) 16px 0 calc(16px + env(safe-area-inset-left)); }
 .app.is-compact .nl-card { padding: 14px 16px 14px calc(16px + env(safe-area-inset-left)); }
 .app.is-compact .nl-items { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .nl-menu { width: 36px; height: 36px; margin-left: -6px; border-radius: var(--radius); display: grid; place-items: center; color: var(--text); }
@@ -698,7 +698,7 @@ html.vv-tracked .app { touch-action: manipulation; }
 }
 .fab:active { transform: scale(0.94); }
 
-.app.is-compact .ep-topbar { height: auto; min-height: 50px; padding: var(--safe-top, env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) 0 4px; }
+.app.is-compact .ep-topbar { height: auto; min-height: 50px; padding: env(safe-area-inset-top) calc(8px + env(safe-area-inset-right)) 0 4px; }
 .ep-back { display: flex; align-items: center; gap: 0; padding: 6px 8px 6px 2px; color: var(--green); font-size: 16px; font-weight: 600; }
 .app.is-compact .ep-save { display: none; }
 .app.is-compact .toolbar { padding: 4px 6px; gap: 0; }
@@ -758,7 +758,7 @@ html.keyboard-open .app.is-compact .ep-doc { padding-bottom: 24px; }
 }
 /* Unfolded and turned sideways: little height, so tighten vertical space */
 @media (max-height: 680px) and (orientation: landscape) {
-  .app.is-compact .nl-header { padding-top: calc(8px + var(--safe-top, env(safe-area-inset-top))); }
+  .app.is-compact .nl-header { padding-top: calc(8px + env(safe-area-inset-top)); }
   .app.is-compact .nl-title h1 { font-size: 19px; }
   .app.is-compact .nl-subbar { height: 36px; }
   .app.is-compact .ep-title { font-size: 22px; margin-bottom: 8px; }
@@ -794,7 +794,7 @@ html.keyboard-open .app.is-phone .toolbar { display: none; } /* the bar replaces
 .status-scrim { display: none; }
 html.vv-tracked .status-scrim {
   display: block; position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  height: var(--safe-top, env(safe-area-inset-top)); background: #1a1a1a; pointer-events: none;
+  height: env(safe-area-inset-top); background: #1a1a1a; pointer-events: none;
 }
 /* Sideways: keep text and buttons clear of the rounded corners / sensor housing on both sides. */
 .app.is-compact .ep-doc { padding-right: calc(18px + env(safe-area-inset-right)); }
@@ -812,7 +812,21 @@ html.keyboard-open .app.is-compact .kb-bar { padding-left: calc(6px + env(safe-a
 .kb-btn { width: 44px; height: 44px; }
 .kb-done { height: 44px; }
 .app.is-compact .tag-chip button { min-width: 28px; min-height: 28px; }
-.app.is-compact .modal { max-height: calc(var(--app-height, 100dvh) - var(--safe-top, env(safe-area-inset-top)) - 24px); overflow-y: auto; }
+.app.is-compact .modal { max-height: calc(var(--app-height, 100dvh) - env(safe-area-inset-top) - 24px); overflow-y: auto; }
+
+/* iPhone Duo folded upright (Home Screen app): the clock / network icons are a vertical strip in the
+   top-right corner (about 75 pt wide, 165 pt tall) that iOS doesn't report as unsafe; html.side-status
+   comes from src/lib/viewport.ts. Keep buttons out of that corner and start the note list below it
+   (an iOS-style large-title header). */
+html.side-status { --side-w: 84px; --side-h: 172px; }
+html.side-status .app.is-phone .nl-header {
+  min-height: var(--side-h); box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+html.side-status .app.is-phone .nl-title,
+html.side-status .app.is-phone .nl-subbar,
+html.side-status .app.is-phone .ep-topbar,
+html.side-status .app.is-phone .toolbar { padding-right: var(--side-w); }
 
 /* ---- Sync status + pull-to-sync in the note list ---- */
 .nl-count { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -859,7 +873,7 @@ html.keyboard-open .app.is-compact .kb-bar { padding-left: calc(6px + env(safe-a
 .rail {
   width: 60px; flex-shrink: 0; background: var(--sb-bg); color: var(--sb-text);
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: calc(10px + var(--safe-top, env(safe-area-inset-top))) 0 calc(10px + env(safe-area-inset-bottom));
+  padding: calc(10px + env(safe-area-inset-top)) 0 calc(10px + env(safe-area-inset-bottom));
   padding-left: env(safe-area-inset-left); box-sizing: content-box;
 }
 .rail-btn { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; color: var(--sb-text); }

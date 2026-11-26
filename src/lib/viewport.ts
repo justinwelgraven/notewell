@@ -113,22 +113,13 @@ function keepCaretVisible() {
 }
 
 /**
- * Room to leave for the status bar (--safe-top, used instead of env(safe-area-inset-top) in styles.css).
- * The Home Screen app on the iPhone Duo can draw under the status bar while reporting an inset of 0,
- * so the header ended up under the clock and network icons. When that happens (Home Screen app,
- * upright), use the last real inset seen on this device, or a standard status-bar height.
- * Sideways iPhones hide the status bar, so 0 is trusted there.
+ * Status bar on the side (iPhone Duo folded, upright, Home Screen app): the clock and network icons sit
+ * in a vertical strip in the top-right corner, and iOS reports no safe-area inset for it. A normal
+ * iPhone always reports a top inset there, so "Home Screen app, upright, touch, top inset 0" means
+ * this strip: html.side-status then keeps the top-right corner clear (styles.css).
  */
-const SAFE_TOP_KEY = "notewell-safe-top";
-function statusBarInset(): number {
-  const env = cssLength("env(safe-area-inset-top, 0px)", "paddingTop") ?? 0;
-  if (env > 0) {
-    if (isPortrait() && isHomeScreen() && String(env) !== localStorage.getItem(SAFE_TOP_KEY)) localStorage.setItem(SAFE_TOP_KEY, String(env));
-    return env;
-  }
-  if (!isHomeScreen() || !isPortrait()) return 0;
-  const seen = Number(localStorage.getItem(SAFE_TOP_KEY));
-  return seen > 0 && seen < 120 ? seen : 50;
+function sideStatusStrip(envTop: number): boolean {
+  return envTop === 0 && isHomeScreen() && isPortrait() && matchMedia("(pointer: coarse)").matches;
 }
 
 export function trackVisibleViewport() {
@@ -158,8 +149,8 @@ export function trackVisibleViewport() {
       if (keyboard && changed) requestAnimationFrame(keepCaretVisible);
       if (root.style.getPropertyValue("--app-top") !== t) root.style.setProperty("--app-top", t);
       if (root.classList.contains("keyboard-open") !== keyboard) root.classList.toggle("keyboard-open", keyboard);
-      const st = `${statusBarInset()}px`;
-      if (root.style.getPropertyValue("--safe-top") !== st) root.style.setProperty("--safe-top", st);
+      const side = sideStatusStrip(cssLength("env(safe-area-inset-top, 0px)", "paddingTop") ?? 0);
+      if (root.classList.contains("side-status") !== side) root.classList.toggle("side-status", side);
       // Never let the page itself stay scrolled: everything scrolls inside the app.
       if (!keyboard && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
     });
