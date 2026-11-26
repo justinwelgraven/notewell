@@ -655,19 +655,18 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
    keyboard, rotating and folding never push the toolbar away or cut off the bottom. */
 html.vv-tracked, html.vv-tracked body { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; }
 html.vv-tracked #root { height: auto; }
-/* Not typing: simply stretch to the screen edges, which follows every fold and rotation by itself
-   (measured heights from iOS can be stale right after folding/unfolding). */
-html.vv-tracked .app { position: fixed; inset: 0; }
-/* Typing (keyboard up): use the measured visible area so the toolbar stays above the keyboard. */
-html.vv-tracked.keyboard-open .app {
-  inset: auto 0 auto 0;
+/* Height comes from src/lib/viewport.ts: the full screen (worked out from the device screen and
+   orientation, since iOS can keep a stale window height after rotating/folding), or the visible
+   area above the keyboard while typing. */
+html.vv-tracked .app {
+  position: fixed; left: 0; right: 0;
   top: var(--app-top, 0px);
   height: var(--app-height, 100dvh);
 }
-html.vv-tracked.keyboard-open .app.is-compact .sidebar,
-html.vv-tracked.keyboard-open .drawer-backdrop,
-html.vv-tracked.keyboard-open .modal-backdrop,
-html.vv-tracked.keyboard-open .sheet-backdrop {
+html.vv-tracked .app.is-compact .sidebar,
+html.vv-tracked .drawer-backdrop,
+html.vv-tracked .modal-backdrop,
+html.vv-tracked .sheet-backdrop {
   top: var(--app-top, 0px); bottom: auto; height: var(--app-height, 100dvh);
 }
 /* Keyboard open: give the note all the room (the tag bar stays while you're typing a tag). */

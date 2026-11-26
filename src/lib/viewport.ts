@@ -19,6 +19,35 @@ function isTyping(): boolean {
   return tag === "TEXTAREA" || (tag === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color)$/i.test((el as HTMLInputElement).type));
 }
 
+const isHomeScreen = () =>
+  (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia("(display-mode: standalone)").matches;
+
+function isPortrait(): boolean {
+  const type = screen.orientation?.type;
+  if (type) return type.startsWith("portrait");
+  const angle = (window as unknown as { orientation?: number }).orientation;
+  if (typeof angle === "number") return angle === 0 || angle === 180;
+  return window.innerWidth <= window.innerHeight;
+}
+
+/**
+ * The app's full height when the keyboard is down.
+ * In the Home Screen app the app covers the whole screen, so its height follows from the device screen
+ * and the current orientation — which iOS reports reliably, unlike the window height, which can keep the
+ * old value after rotating (an empty band at the bottom). Only used when it matches the current width,
+ * so the folded and unfolded screens of the iPhone Duo are never mixed up.
+ */
+function fullHeight(): number {
+  const measured = Math.max(window.innerHeight, document.documentElement.clientHeight);
+  if (!isHomeScreen()) return measured;
+  const long = Math.max(screen.width, screen.height);
+  const short = Math.min(screen.width, screen.height);
+  const portrait = isPortrait();
+  const expectedWidth = portrait ? short : long;
+  const expectedHeight = portrait ? long : short;
+  return Math.abs(expectedWidth - window.innerWidth) <= 24 ? expectedHeight : measured;
+}
+
 export function trackVisibleViewport() {
   const root = document.documentElement;
   const vv = window.visualViewport;
@@ -28,7 +57,7 @@ export function trackVisibleViewport() {
   const update = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
-      const full = window.innerHeight;
+      const full = fullHeight();
       const visible = vv ? vv.height : full;
       // Keyboard open = typing in a field AND the visible area is clearly shorter than the window.
       // (Never trust a visible height below 30% of the window: that's a stale value, not a keyboard.)
