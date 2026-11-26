@@ -1,12 +1,13 @@
 // Runs the Tauri CLI with the right settings for building on this computer.
 //  - Rust's build output goes OUTSIDE the project folder: the project lives in Dropbox and the
 //    build folder is several GB and machine-specific (also avoids Windows' 260-character path limit).
-//  - Update packages are signed with the private key in ~/.tauri/notewell.key (never in the project).
+//  - Update packages are signed with the private key notewell.key (user profile or project folder; never committed).
 // On GitHub's build servers (CI) both are handled by the workflow instead.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const env = { ...process.env };
 
@@ -18,8 +19,11 @@ if (!process.env.CI) {
         ? join(homedir(), "Library", "Caches", "notewell-build")
         : join(homedir(), ".cache", "notewell-build");
 
-  const keyFile = join(homedir(), ".tauri", "notewell.key");
-  if (!env.TAURI_SIGNING_PRIVATE_KEY && existsSync(keyFile)) {
+  // The key may be in your user profile (~/.tauri) or in the project folder in Dropbox
+  // (handy on the Mac). It's never committed: *.key is in .gitignore.
+  const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const keyFile = [join(homedir(), ".tauri", "notewell.key"), join(projectRoot, "notewell.key")].find((f) => existsSync(f));
+  if (!env.TAURI_SIGNING_PRIVATE_KEY && keyFile) {
     env.TAURI_SIGNING_PRIVATE_KEY = readFileSync(keyFile, "utf8").trim();
     env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ??= "";
   }

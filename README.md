@@ -129,7 +129,7 @@ Every push to GitHub (`main`):
 - **GitHub Pages** rebuilds and publishes the web version (`.github/workflows/web.yml`).
   Put **[web only]** in a commit message to update just the web version without a new desktop release.
 
-Updates are signed. The private key is `%USERPROFILE%\.tauri\notewell.key` on the Windows PC (never in Dropbox or Git) —
+Updates are signed with the private key `notewell.key`, kept in this project folder in Dropbox (and in `%USERPROFILE%\.tauri\` on the PC). It is never committed to Git (`*.key` is ignored) —
 **keep a backup of it** (e.g. in a password manager). Without it, installed apps can't be updated anymore and would need a reinstall.
 The same key is stored as the GitHub secret `TAURI_SIGNING_PRIVATE_KEY`.
 

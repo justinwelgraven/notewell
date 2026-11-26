@@ -33,7 +33,7 @@ User-facing docs, setup and build steps: **README.md**.
 - Git repo lives on the Windows PC only (`.git` is Dropbox-ignored). Commit + `git push` to `main` = release:
   GitHub Actions builds/signs Mac + Windows as `v0.1.<run>` (auto-update via `tauri-plugin-updater`, `latest.json` on GitHub releases),
   GitHub Pages (.github/workflows/web.yml) publishes the web app at https://justinwelgraven.github.io/notewell/.
-  [web only] in the commit message skips the desktop release. Signing key: `~/.tauri/notewell.key` (loaded by `scripts/tauri.mjs`; GitHub secret `TAURI_SIGNING_PRIVATE_KEY`).
+  [web only] in the commit message skips the desktop release. Signing key: `notewell.key` in the project folder (Dropbox) or `~/.tauri/` (loaded by `scripts/tauri.mjs`; `*.key` is git-ignored — never commit it; GitHub secret `TAURI_SIGNING_PRIVATE_KEY`).
 - Updater endpoint in `src-tauri/tauri.conf.json` → `plugins.updater.endpoints` (GitHub user/repo).
 
 ## Commands
