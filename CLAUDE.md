@@ -47,6 +47,10 @@ User-facing docs, setup and build steps: **README.md**.
   Notebook `stack` is synced through notebooks.json (the notebooks merge signature includes it).
 - Note links: inline node `noteLink` (`src/editor/NoteLink.ts`, `[[` via @tiptap/suggestion); App supplies the note list
   (`setNoteLinkSource`) and handles `notewell:open-note`; backlinks via `linkedNoteIds` (cached per content object).
+- Spell check English + Dutch: Windows/WebView2 only checks languages in its `spellcheck.dictionaries` pref, so
+  `enable_spellcheck_languages` (lib.rs, start of `run()`) adds en-US + nl-NL to
+  `%LOCALAPPDATA%\com.notewell.desktop\EBWebView\Default\Preferences` before any webview starts (Rust test included).
+  Mac/iPhone use the system spell checker (automatic language detection; Dutch must be enabled in system settings).
 - Window keystroke tests: don't send keystrokes to the desktop app with SendKeys — they can land in the user's active window. Use the browser preview for UI/key tests.
 
 ## Releasing

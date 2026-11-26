@@ -59,6 +59,68 @@ fn save_data(app: AppHandle, data: String) -> Result<(), String> {
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
+/// Spell check in English and Dutch (Windows). WebView2 checks spelling with Windows' own spell
+/// checker, but only for the languages in its "spellcheck.dictionaries" setting, which starts out as
+/// just the Windows display language. Add both to its settings file before any window opens.
+/// (Mac and iPhone use the system spell checker, which detects the language by itself.)
+#[cfg(windows)]
+fn enable_spellcheck_languages(identifier: &str) {
+    const WANTED: [&str; 2] = ["en-US", "nl-NL"];
+    let Ok(local) = std::env::var("LOCALAPPDATA") else { return };
+    let path = PathBuf::from(local).join(identifier).join("EBWebView").join("Default").join("Preferences");
+    let mut prefs: serde_json::Value = match fs::read_to_string(&path) {
+        Ok(text) => serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({})),
+        Err(_) => serde_json::json!({}),
+    };
+    if !prefs.is_object() {
+        return;
+    }
+    let current: Vec<String> = prefs
+        .pointer("/spellcheck/dictionaries")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    if WANTED.iter().all(|w| current.iter().any(|c| c == w)) {
+        return; // already set
+    }
+    let mut dictionaries = current;
+    for w in WANTED {
+        if !dictionaries.iter().any(|c| c == w) {
+            dictionaries.push(w.to_string());
+        }
+    }
+    prefs["spellcheck"]["dictionaries"] = serde_json::json!(dictionaries);
+    prefs["spellcheck"]["use_spelling_service"] = serde_json::json!(false); // never send text online
+    prefs["intl"]["accept_languages"] = serde_json::json!(dictionaries.join(","));
+    if let Some(dir) = path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    let _ = fs::write(&path, prefs.to_string());
+}
+
+#[cfg(all(test, windows))]
+mod spellcheck_tests {
+    use super::*;
+
+    #[test]
+    fn adds_dutch_and_keeps_other_settings() {
+        let tmp = std::env::temp_dir().join(format!("nw-spell-{}", std::process::id()));
+        let prefs = tmp.join("test.id").join("EBWebView").join("Default").join("Preferences");
+        fs::create_dir_all(prefs.parent().unwrap()).unwrap();
+        fs::write(&prefs, r#"{"spellcheck":{"dictionaries":["en-US"]},"other":{"keep":1}}"#).unwrap();
+        std::env::set_var("LOCALAPPDATA", &tmp);
+        enable_spellcheck_languages("test.id");
+        let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(&prefs).unwrap()).unwrap();
+        assert_eq!(v["spellcheck"]["dictionaries"], serde_json::json!(["en-US", "nl-NL"]));
+        assert_eq!(v["other"]["keep"], 1);
+        // Second run: nothing to change.
+        let before = fs::read_to_string(&prefs).unwrap();
+        enable_spellcheck_languages("test.id");
+        assert_eq!(before, fs::read_to_string(&prefs).unwrap());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
 /// Writes an export/backup file to the Downloads folder (never overwriting) and returns its path.
 #[tauri::command]
 fn save_export(app: AppHandle, name: String, contents: String) -> Result<String, String> {
@@ -279,6 +341,10 @@ const QUICK_LABEL: &str = "Ctrl+Alt+N";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Before any window (and its WebView2 browser) starts: spell check English + Dutch.
+    #[cfg(windows)]
+    enable_spellcheck_languages("com.notewell.desktop");
+
     let builder = tauri::Builder::default().manage(Quitting(AtomicBool::new(false)));
 
     #[cfg(desktop)]

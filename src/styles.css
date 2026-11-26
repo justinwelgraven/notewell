@@ -945,7 +945,9 @@ html.side-status .app.is-phone .toolbar { padding-right: var(--side-w); }
 .quick-footer { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); }
 .quick-footer .ep-notebook { max-width: 200px; }
 .quick-footer .dropdown-panel { top: auto; bottom: calc(100% + 4px); }
-.quick-status { flex: 1; font-size: 12px; color: var(--text-3); text-align: right; white-space: nowrap; }
+.quick-status { flex: 1; min-width: 0; font-size: 12px; color: var(--text-3); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Buttons never squeeze into two lines; the status text gives way instead. */
+.quick-footer .btn { flex-shrink: 0; white-space: nowrap; }
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
