@@ -39,6 +39,29 @@ fn save_data(app: AppHandle, data: String) -> Result<(), String> {
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
+/// Writes an export/backup file to the Downloads folder (never overwriting) and returns its path.
+#[tauri::command]
+fn save_export(app: AppHandle, name: String, contents: String) -> Result<String, String> {
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let safe: String = name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || " ._-()".contains(c) { c } else { '_' })
+        .collect();
+    let (stem, ext) = match safe.rfind('.') {
+        Some(i) => (safe[..i].to_string(), safe[i..].to_string()),
+        None => (safe.clone(), String::new()),
+    };
+    let mut path = dir.join(&safe);
+    let mut n = 2;
+    while path.exists() {
+        path = dir.join(format!("{stem} ({n}){ext}"));
+        n += 1;
+    }
+    fs::write(&path, contents).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[derive(serde::Serialize)]
 struct FetchedPage {
     final_url: String,
@@ -285,6 +308,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_data,
             save_data,
+            save_export,
             fetch_page,
             open_quick_note,
             finish_close,

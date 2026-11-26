@@ -5,7 +5,7 @@ import { Icon } from "./Icon";
  * Phone / iPhone Duo: a formatting bar that sits right above the on-screen keyboard while typing
  * (like Apple Notes), so it's within thumb reach. Only shown while the keyboard is open (see styles.css).
  */
-export default function KeyboardBar({ editor }: { editor: Editor }) {
+export default function KeyboardBar({ editor, onInsertImage }: { editor: Editor; onInsertImage: () => void }) {
   const s = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -44,6 +44,7 @@ export default function KeyboardBar({ editor }: { editor: Editor }) {
         {btn("checklist", "Checklist", s.task, () => c().toggleTaskList().run())}
         {btn("bulletList", "Bulleted list", s.bullet, () => c().toggleBulletList().run())}
         {btn("orderedList", "Numbered list", s.ordered, () => c().toggleOrderedList().run())}
+        {btn("image", "Add picture", false, onInsertImage)}
         <span className="kb-sep" />
         {btn("bold", "Bold", s.bold, () => c().toggleBold().run())}
         {btn("italic", "Italic", s.italic, () => c().toggleItalic().run())}

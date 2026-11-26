@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { getText, getTextSerializersFromSchema } from "@tiptap/core";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Note, Notebook } from "../types";
 import { editorExtensions } from "../editor/extensions";
 import { insertUrlBlock } from "../editor/SmartPaste";
@@ -14,6 +16,9 @@ import Toolbar from "./Toolbar";
 import MarginControl from "./MarginControl";
 import KeyboardBar from "./KeyboardBar";
 import { useEdgeSwipe } from "../lib/gestures";
+import { imageFiles } from "../lib/images";
+import { insertImages } from "../editor/NoteImage";
+import { setSearchHighlight } from "../editor/SearchHighlight";
 import { Icon } from "./Icon";
 import { Dropdown, MenuItem, PromptDialog } from "./Menu";
 
@@ -32,6 +37,14 @@ interface Props {
   onOpenTag: (tag: string) => void;
   /** Phone: back to the note list. */
   onBack?: () => void;
+  /** Bumped when the note was changed outside this editor; the editor then shows the new version. */
+  rev: number;
+  /** Current search words, highlighted in the note. */
+  search?: string;
+  onTogglePin: () => void;
+  onToggleStar: () => void;
+  /** Dropbox connected: earlier versions can be restored. */
+  onHistory?: () => void;
 }
 
 export default function EditorPane(p: Props) {
@@ -75,22 +88,83 @@ export default function EditorPane(p: Props) {
         return false;
       },
     },
+    // Typing: the note's data (body, list text, thumbnail, #tags) is worked out at most every 250 ms
+    // instead of on every keystroke — that keeps typing smooth on iPhone with long notes.
     onUpdate: ({ editor }) => {
-      const json = editor.getJSON();
-      const tags = tagsFromHashtags(editor);
-      onChangeRef.current({
-        content: json,
-        text: editor.getText({ blockSeparator: "\n" }),
-        thumb: findThumb(json),
-        ...(tags ? { tags } : {}),
-      });
+      // Keep the latest document (immutable, so this is free); it's still readable after the editor closes.
+      dirty.current = { doc: editor.state.doc, selection: editor.state.selection };
+      window.clearTimeout(flushTimer.current);
+      flushTimer.current = window.setTimeout(flush, 250);
     },
     // A hashtag typed at the very end, then clicking away, still becomes a tag.
     onBlur: ({ editor }) => {
+      flush();
       const tags = tagsFromHashtags(editor, true);
       if (tags) onChangeRef.current({ tags });
     },
   });
+
+  const dirty = useRef<{ doc: PMNode; selection: { empty: boolean; from: number } } | null>(null);
+  const flushTimer = useRef<number | undefined>(undefined);
+  function flush() {
+    window.clearTimeout(flushTimer.current);
+    const pending = dirty.current;
+    if (!pending) return;
+    dirty.current = null;
+    const { doc } = pending;
+    const json = doc.toJSON();
+    const tags = tagsFromHashtags({ state: pending });
+    onChangeRef.current({
+      content: json,
+      text: getText(doc, { blockSeparator: "\n", textSerializers: getTextSerializersFromSchema(doc.type.schema) }),
+      thumb: findThumb(json),
+      ...(tags ? { tags } : {}),
+    });
+  }
+  // Never lose the last keystrokes: save when switching notes, hiding the app or closing.
+  useEffect(() => {
+    const onHide = () => document.visibilityState === "hidden" && flush();
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("notewell:flush-editor", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("notewell:flush-editor", flush);
+      flush();
+    };
+  }, []);
+
+  // The note was changed elsewhere (another device, quick note window, restored version): show the new
+  // version in place, keeping the cursor and the keyboard, instead of reloading the editor.
+  const firstRev = useRef(true);
+  useEffect(() => {
+    if (firstRev.current) {
+      firstRev.current = false;
+      return;
+    }
+    if (!editor || editor.isDestroyed) return;
+    // Typed something that wasn't handed over yet: keep what's typed here (it uploads over the other
+    // version, which stays available in Version history).
+    if (dirty.current) return flush();
+    const { from, to } = editor.state.selection;
+    editor.commands.setContent(note.content ?? "", { emitUpdate: false });
+    const max = editor.state.doc.content.size;
+    try {
+      editor.commands.setTextSelection({ from: Math.min(from, max), to: Math.min(to, max) });
+    } catch {}
+  }, [p.rev]);
+
+  // Search words are highlighted in the note; when opening a note from search, jump to the first one.
+  const searchedOnce = useRef(false);
+  useEffect(() => {
+    if (!editor) return;
+    setSearchHighlight(editor, p.search ?? "", !searchedOnce.current);
+    searchedOnce.current = true;
+  }, [editor, p.search]);
+
+  const imageInput = useRef<HTMLInputElement>(null);
+  const pickImages = () => imageInput.current?.click();
 
   // Fill in the snippet for notes that have never been edited (e.g. the welcome note).
   useEffect(() => {
@@ -210,7 +284,7 @@ export default function EditorPane(p: Props) {
             <button
               className={`ep-icon-btn${note.starred ? " is-starred" : ""}`}
               title={note.starred ? "Remove from Shortcuts" : "Add to Shortcuts"}
-              onClick={() => p.onChange({ starred: !note.starred, updatedAt: note.updatedAt })}
+              onClick={p.onToggleStar}
             >
               <Icon name="star" size={17} filled={note.starred} />
             </button>
@@ -224,10 +298,16 @@ export default function EditorPane(p: Props) {
                 </>
               ) : (
                 <>
-                  <MenuItem onSelect={() => { close(); p.onChange({ starred: !note.starred, updatedAt: note.updatedAt }); }}>
+                  <MenuItem onSelect={() => { close(); p.onToggleStar(); }}>
                     {note.starred ? "Remove from Shortcuts" : "Add to Shortcuts"}
                   </MenuItem>
+                  <MenuItem onSelect={() => { close(); p.onTogglePin(); }}>
+                    {note.pinned ? "Unpin from top" : "Pin to top of list"}
+                  </MenuItem>
                   <MenuItem onSelect={() => { close(); p.onDuplicate(); }}>Duplicate</MenuItem>
+                  {p.onHistory && (
+                    <MenuItem onSelect={() => { close(); flush(); p.onHistory!(); }}>Version history…</MenuItem>
+                  )}
                   <div className="menu-sep" />
                   <div className="menu-info">
                     Created {fullDate(note.createdAt)}
@@ -253,8 +333,20 @@ export default function EditorPane(p: Props) {
           <button className="btn btn-danger btn-sm" onClick={p.onDeleteForever}>Delete permanently</button>
         </div>
       ) : (
-        editor && <Toolbar editor={editor} onLink={() => setDialog("link")} onInsertUrl={() => setDialog("url")} />
+        editor && <Toolbar editor={editor} onLink={() => setDialog("link")} onInsertUrl={() => setDialog("url")} onInsertImage={pickImages} />
       )}
+      <input
+        ref={imageInput}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = imageFiles(e.target.files);
+          e.target.value = "";
+          if (editor && files.length) void insertImages(editor, files);
+        }}
+      />
 
       <div className="ep-scroll" onClick={handleBodyClick}>
         <div className="ep-doc">
@@ -283,7 +375,7 @@ export default function EditorPane(p: Props) {
         </div>
       </div>
 
-      {editor && !trashed && <KeyboardBar editor={editor} />}
+      {editor && !trashed && <KeyboardBar editor={editor} onInsertImage={pickImages} />}
       <footer className="ep-footer">
         <div className="ep-tags">
           <Icon name="tag" size={15} />

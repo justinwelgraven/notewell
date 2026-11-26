@@ -11,6 +11,8 @@ export interface Note {
   notebookId: string;
   tags: string[];
   starred: boolean;
+  /** Shown at the top of the note list. */
+  pinned?: boolean;
   trashedAt: number | null;
   createdAt: number;
   updatedAt: number;

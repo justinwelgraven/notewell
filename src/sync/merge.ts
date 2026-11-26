@@ -67,6 +67,7 @@ const sameContent = (a: Note, b: Note) =>
   JSON.stringify(a.content) === JSON.stringify(b.content) &&
   a.notebookId === b.notebookId &&
   a.starred === b.starred &&
+  !!a.pinned === !!b.pinned &&
   a.trashedAt === b.trashedAt &&
   a.tags.join("\u0000") === b.tags.join("\u0000");
 
@@ -75,6 +76,7 @@ const conflictedCopy = (n: Note, newId: string): Note => ({
   id: newId,
   title: `${n.title.trim() || "Untitled"} (conflicted copy)`,
   starred: false,
+  pinned: false,
 });
 
 /**

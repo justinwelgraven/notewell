@@ -10,6 +10,7 @@ interface Props {
   onClose: () => void;
   onOpen: () => void;
   onStar: () => void;
+  onPin: () => void;
   onMove: (notebookId: string) => void;
   onDuplicate: () => void;
   onTrash: () => void;
@@ -69,6 +70,7 @@ export default function NoteActions(p: Props) {
           <>
             {!p.at && row("note", "Open", act(p.onOpen))}
             {row("star", p.note.starred ? "Remove from Shortcuts" : "Add to Shortcuts", act(p.onStar))}
+            {row("pin", p.note.pinned ? "Unpin from top" : "Pin to top of list", act(p.onPin))}
             {row("notebook", "Move to notebook…", () => setMoving(true))}
             {row("copy", "Duplicate", act(p.onDuplicate))}
             {row("trash", "Move to Trash", act(p.onTrash), "is-danger")}

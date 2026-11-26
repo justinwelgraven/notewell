@@ -3,7 +3,7 @@ import type { AppData, Note, SortMode, View } from "./types";
 import { isTauri, loadData, onAppClose, openQuickNote, saveData } from "./lib/storage";
 import { listen } from "@tauri-apps/api/event";
 import { Resizer, useStoredNumber } from "./components/Resizer";
-import { docText, seedData, uid } from "./lib/util";
+import { docText, findThumb, seedData, uid } from "./lib/util";
 import Sidebar from "./components/Sidebar";
 import NoteList from "./components/NoteList";
 import EditorPane from "./components/EditorPane";
@@ -31,6 +31,10 @@ import { syncLabel } from "./components/Sidebar";
 import { checkForUpdate, type AvailableUpdate } from "./lib/updater";
 import { watchWebUpdates } from "./lib/webUpdate";
 import { useLayoutMode } from "./lib/viewport";
+import { saveFile } from "./lib/storage";
+import { makeBackup, makeMarkdown, restoreBackup } from "./lib/backup";
+import type { BackupUi } from "./components/Sidebar";
+import HistoryDialog from "./components/HistoryDialog";
 
 export interface SyncUi {
   dropbox: DropboxStatus;
@@ -56,6 +60,7 @@ function useMediaQuery(query: string): boolean {
   return match;
 }
 
+const TRASH_DAYS = 30;
 const SB_DEFAULT = 240;
 const LIST_DEFAULT = 340;
 
@@ -99,8 +104,19 @@ export default function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const [sbWidth, setSbWidth] = useStoredNumber("notewell-w-sidebar", SB_DEFAULT);
   const [listWidth, setListWidth] = useStoredNumber("notewell-w-list", LIST_DEFAULT);
-  // Bumped when the quick-note window changes a note, so an open editor reloads it.
+  // Bumped when a note changes outside the editor (quick note window, another device, restored version),
+  // so an open editor shows the new version.
   const [quickRev, setQuickRev] = useState<Record<string, number>>({});
+  const bumpRev = (ids: string[]) =>
+    setQuickRev((r) => Object.fromEntries([...Object.entries(r), ...ids.map((id) => [id, (r[id] ?? 0) + 1])]));
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+
+  /** Saves right away, including the last keystrokes the editor hasn't handed over yet. */
+  const saveNow = async () => {
+    window.dispatchEvent(new Event("notewell:flush-editor"));
+    await new Promise((r) => setTimeout(r, 40)); // let React apply them
+    if (dataRef.current) await saveData(dataRef.current);
+  };
 
   // ---- Load & persist ----
   useEffect(() => {
@@ -117,7 +133,7 @@ export default function App() {
     const unlisten = onAppClose(() => dataRef.current);
     // Closing the window hides it to the tray: save straight away rather than waiting for the autosave.
     const onHide = () => {
-      if (document.visibilityState === "hidden" && dataRef.current) saveData(dataRef.current).catch(() => {});
+      if (document.visibilityState === "hidden") saveNow().catch(() => {});
     };
     document.addEventListener("visibilitychange", onHide);
     return () => {
@@ -139,7 +155,7 @@ export default function App() {
           const fixed = d.notebooks.some((nb) => nb.id === note.notebookId) ? note : { ...note, notebookId: d.defaultNotebookId };
           return { ...d, notes: exists ? d.notes.map((n) => (n.id === note.id ? fixed : n)) : [fixed, ...d.notes] };
         });
-        setQuickRev((r) => ({ ...r, [note.id]: (r[note.id] ?? 0) + 1 }));
+        bumpRev([note.id]);
       }),
       listen<string>("quick-note-open", async ({ payload: id }) => {
         setView({ kind: "all" });
@@ -193,8 +209,8 @@ export default function App() {
       () => dataRef.current,
       (fn) => setData((d) => (d ? fn(d) : d)),
       setSyncStatus,
-      // Reload an open editor when its note was changed on another device.
-      (ids) => setQuickRev((r) => Object.fromEntries([...Object.entries(r), ...ids.map((id) => [id, (r[id] ?? 0) + 1])])),
+      // Show the new version in an open editor when its note was changed on another device.
+      bumpRev,
     );
     engineRef.current = engine;
     engine.start();
@@ -276,6 +292,8 @@ export default function App() {
     if (sort === "title") sorted.sort((a, b) => (a.title || "Untitled").localeCompare(b.title || "Untitled"));
     else if (sort === "created") sorted.sort((a, b) => b.createdAt - a.createdAt);
     else sorted.sort((a, b) => b.updatedAt - a.updatedAt);
+    // Pinned notes first (stable sort keeps the chosen order within each group).
+    if (view.kind !== "trash") sorted.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
     return sorted;
   }, [data, view, search, sort]);
 
@@ -333,7 +351,61 @@ export default function App() {
     setSelectedId(copy.id);
   };
 
+  /** Star / pin: the date moves by just 1 ms (so the list order stays put), which is enough for sync to
+   *  see the change and upload it. */
+  const toggleFlag = (id: string, flag: "starred" | "pinned") =>
+    setData((d) => d && { ...d, notes: d.notes.map((n) => (n.id === id ? { ...n, [flag]: !n[flag], updatedAt: n.updatedAt + 1 } : n)) });
+
   const trashNote = (id: string) => updateNote(id, { trashedAt: Date.now() });
+
+  // Notes in Trash for more than 30 days are deleted for good (checked at start and every few hours).
+  useEffect(() => {
+    if (!loaded) return;
+    const purge = () =>
+      setData((d) => {
+        if (!d) return d;
+        const old = d.notes.filter((n) => n.trashedAt !== null && Date.now() - n.trashedAt > TRASH_DAYS * 86400000).map((n) => n.id);
+        return old.length ? removeNotes(d, old) : d;
+      });
+    purge();
+    const t = setInterval(purge, 4 * 60 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [loaded]);
+
+  // ---- Backup & export ----
+  const backupUi: BackupUi = {
+    exportBackup: async () => {
+      try {
+        await saveNow();
+        const { name, content } = await makeBackup(dataRef.current!);
+        const path = await saveFile(name, content, "application/json");
+        if (path) setToast({ text: `Backup saved to ${path}` });
+      } catch (e) {
+        setToast({ text: `Backup failed: ${String(e).slice(0, 120)}` });
+      }
+    },
+    exportMarkdown: async () => {
+      try {
+        await saveNow();
+        const { name, content } = makeMarkdown(dataRef.current!);
+        const path = await saveFile(name, content, "text/markdown");
+        if (path) setToast({ text: `Exported to ${path}` });
+      } catch (e) {
+        setToast({ text: `Export failed: ${String(e).slice(0, 120)}` });
+      }
+    },
+    restore: async (file) => {
+      try {
+        await saveNow();
+        const r = await restoreBackup(dataRef.current!, await file.text());
+        setData(r.data);
+        bumpRev(r.data.notes.map((n) => n.id));
+        setToast({ text: `Restored: ${r.added} notes added, ${r.updated} updated` });
+      } catch (e) {
+        setToast({ text: String(e instanceof Error ? e.message : e).slice(0, 140) });
+      }
+    },
+  };
   const restoreNote = (id: string) => {
     if (!data) return;
     const note = data.notes.find((n) => n.id === id);
@@ -429,7 +501,7 @@ export default function App() {
     if (!update) return;
     setInstalling(true);
     try {
-      if (dataRef.current) await saveData(dataRef.current); // never lose a note to an update
+      await saveNow(); // never lose a note to an update
       await update.install();
     } catch (e) {
       setInstalling(false);
@@ -575,6 +647,7 @@ export default function App() {
           width={compact ? undefined : sbWidth}
           onQuickNote={isTauri ? openQuickNote : undefined}
           sync={syncUi}
+          backup={backupUi}
         />
       )}
       {!focusMode && !compact && (
@@ -617,7 +690,12 @@ export default function App() {
       )}
       {!showEditor ? null : selected ? (
         <EditorPane
-          key={`${selected.id}-${quickRev[selected.id] ?? 0}`}
+          key={selected.id}
+          rev={quickRev[selected.id] ?? 0}
+          search={search}
+          onToggleStar={() => toggleFlag(selected.id, "starred")}
+          onTogglePin={() => toggleFlag(selected.id, "pinned")}
+          onHistory={dbx.connected ? () => setHistoryFor(selected.id) : undefined}
           onBack={narrow ? () => setMobilePane("list") : undefined}
           note={selected}
           notebooks={[...data.notebooks].sort((a, b) => a.name.localeCompare(b.name))}
@@ -658,7 +736,7 @@ export default function App() {
           <button
             className="btn btn-primary btn-sm"
             onClick={async () => {
-              if (dataRef.current) await saveData(dataRef.current);
+              await saveNow();
               location.reload();
             }}
           >
@@ -713,7 +791,8 @@ export default function App() {
                 setSelectedId(n.id);
                 setMobilePane("editor");
               }}
-              onStar={() => updateNote(n.id, { starred: !n.starred, updatedAt: n.updatedAt })}
+              onStar={() => toggleFlag(n.id, "starred")}
+              onPin={() => toggleFlag(n.id, "pinned")}
               onMove={(notebookId) => updateNote(n.id, { notebookId })}
               onDuplicate={() => duplicateNote(n.id)}
               onTrash={() => {
@@ -739,6 +818,19 @@ export default function App() {
         />
       )}
       {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
+      {historyFor && (
+        <HistoryDialog
+          noteId={historyFor}
+          onClose={() => setHistoryFor(null)}
+          onRestore={(v) => {
+            const id = historyFor;
+            updateNote(id, { title: v.title, content: v.content, text: docText(v.content), thumb: findThumb(v.content), tags: v.tags });
+            bumpRev([id]);
+            setHistoryFor(null);
+            setToast({ text: "Earlier version restored" });
+          }}
+        />
+      )}
       {dialog?.kind === "newNotebook" && (
         <PromptDialog
           title="Create new notebook"

@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { IMAGE_THUMB_PREFIX, loadImage } from "../lib/images";
 import { PULL_TRIGGER, useEdgeSwipe, useLongPress, usePullToRefresh } from "../lib/gestures";
 import type { Note, SortMode } from "../types";
 import { relativeDate } from "../lib/util";
@@ -39,14 +40,109 @@ const SORT_LABELS: Record<SortMode, string> = {
   title: "Title",
 };
 
+/** Text with the search words marked. */
+function Marked({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const parts: React.ReactNode[] = [];
+  let at = 0;
+  for (let i = lower.indexOf(query); i !== -1; i = lower.indexOf(query, i + query.length)) {
+    if (i > at) parts.push(text.slice(at, i));
+    parts.push(<mark key={i} className="search-hit">{text.slice(i, i + query.length)}</mark>);
+    at = i + query.length;
+  }
+  parts.push(text.slice(at));
+  return <>{parts}</>;
+}
+
+/** List snippet; while searching, starts near the first match so it's visible. */
+function snippetOf(text: string, query: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const i = query ? flat.toLowerCase().indexOf(query) : -1;
+  if (i > 60) return "…" + flat.slice(i - 40, i + 180);
+  return flat.slice(0, 220);
+}
+
+/** Note-list thumbnail: a web image, or a picture stored in the note ("nwimg:<id>"). */
+function Thumb({ src }: { src: string }) {
+  const [url, setUrl] = useState<string | null>(src.startsWith(IMAGE_THUMB_PREFIX) ? null : src);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!src.startsWith(IMAGE_THUMB_PREFIX)) return setUrl(src);
+    let live = true;
+    loadImage(src.slice(IMAGE_THUMB_PREFIX.length))
+      .then((d) => live && setUrl(d))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [src]);
+  if (!url || failed) return null;
+  return <img className="nl-thumb" src={url} alt="" onError={() => setFailed(true)} />;
+}
+
+interface CardProps {
+  note: Note;
+  selected: boolean;
+  isTrash: boolean;
+  date: number;
+  notebook: string | null;
+  query: string;
+  press: ReturnType<typeof useLongPress>;
+  onPick: (id: string) => void;
+}
+
+/** One note in the list. Memoized: typing in a note only redraws that note's card. */
+const NoteCard = memo(function NoteCard({ note: n, selected, isTrash, date, notebook, query, press, onPick }: CardProps) {
+  const snippet = snippetOf(n.text, query);
+  return (
+    <article
+      id={`note-${n.id}`}
+      role="option"
+      aria-selected={selected}
+      className={`nl-card${selected ? " is-selected" : ""}${n.pinned && !isTrash ? " is-pinned" : ""}`}
+      {...press.bind(n.id)}
+      onClick={() => {
+        if (press.consumeClick()) return; // that tap ended a long-press
+        onPick(n.id);
+      }}
+    >
+      <div className="nl-card-body">
+        <div className="nl-card-title">
+          {n.pinned && !isTrash && <Icon name="pin" size={12} className="nl-pin" />}
+          {n.starred && !isTrash && <Icon name="star" size={12} filled className="nl-star" />}
+          <span className="nl-card-title-text"><Marked text={n.title.trim() || "Untitled"} query={query} /></span>
+        </div>
+        <div className="nl-card-snippet">{snippet ? <Marked text={snippet} query={query} /> : <span className="nl-muted">No additional text</span>}</div>
+        <div className="nl-card-meta">
+          <span>{relativeDate(date)}</span>
+          {notebook && <span className="nl-card-nb">{notebook}</span>}
+          {n.tags.slice(0, 2).map((t) => (
+            <span key={t} className="nl-card-tag">{t}</span>
+          ))}
+        </div>
+      </div>
+      {n.thumb && <Thumb src={n.thumb} />}
+    </article>
+  );
+});
+
 export default function NoteList(p: Props) {
-  const [imgErrors, setImgErrors] = useState<Record<string, true>>({});
   const sectionRef = useRef<HTMLElement>(null);
+  // Stable callbacks, so the memoized cards don't all redraw on every change.
+  const latest = useRef(p);
+  latest.current = p;
+  const pick = useCallback((id: string) => {
+    latest.current.onSelect(id);
+    // Keep keyboard focus on the list, so arrows and Delete work right away.
+    latest.current.listRef.current?.focus({ preventScroll: true });
+  }, []);
+  const onNoteMenu = useCallback((id: string, at: { x: number; y: number } | null) => latest.current.onNoteMenu(id, at), []);
   // Swipe in from the left edge opens the sidebar drawer.
   useEdgeSwipe(sectionRef, () => p.onMenu?.(), !!p.touch && !!p.onMenu);
   // Pull the list down to sync with Dropbox.
   const pull = usePullToRefresh(p.listRef, () => p.sync?.onSync(), !!p.touch && !!p.sync);
-  const press = useLongPress(p.onNoteMenu);
+  const press = useLongPress(onNoteMenu);
   return (
     <section className="notelist" style={{ width: p.width }} ref={sectionRef}>
       <header className="nl-header">
@@ -87,6 +183,7 @@ export default function NoteList(p: Props) {
             </Dropdown>
           </div>
         </div>
+        {p.isTrash && p.notes.length > 0 && <div className="nl-trash-note">Notes in Trash are deleted after 30 days</div>}
       </header>
 
       <div
@@ -125,49 +222,19 @@ export default function NoteList(p: Props) {
             )}
           </div>
         )}
-        {p.notes.map((n) => {
-          const snippet = n.text.replace(/\s+/g, " ").trim().slice(0, 220);
-          const showThumb = n.thumb && !imgErrors[n.id];
-          return (
-            <article
-              key={n.id}
-              id={`note-${n.id}`}
-              role="option"
-              aria-selected={p.selectedId === n.id}
-              className={`nl-card${p.selectedId === n.id ? " is-selected" : ""}`}
-              {...press.bind(n.id)}
-              onClick={() => {
-                if (press.consumeClick()) return; // that tap ended a long-press
-                p.onSelect(n.id);
-                // Keep keyboard focus on the list, so arrows and Delete work right away.
-                p.listRef.current?.focus({ preventScroll: true });
-              }}
-            >
-              <div className="nl-card-body">
-                <div className="nl-card-title">
-                  {n.starred && !p.isTrash && <Icon name="star" size={12} filled className="nl-star" />}
-                  {n.title.trim() || "Untitled"}
-                </div>
-                <div className="nl-card-snippet">{snippet || <span className="nl-muted">No additional text</span>}</div>
-                <div className="nl-card-meta">
-                  <span>{relativeDate(p.sort === "created" ? n.createdAt : n.updatedAt)}</span>
-                  {p.showNotebook && <span className="nl-card-nb">{p.notebookName(n.notebookId)}</span>}
-                  {n.tags.slice(0, 2).map((t) => (
-                    <span key={t} className="nl-card-tag">{t}</span>
-                  ))}
-                </div>
-              </div>
-              {showThumb && (
-                <img
-                  className="nl-thumb"
-                  src={n.thumb!}
-                  alt=""
-                  onError={() => setImgErrors((e) => ({ ...e, [n.id]: true }))}
-                />
-              )}
-            </article>
-          );
-        })}
+        {p.notes.map((n) => (
+          <NoteCard
+            key={n.id}
+            note={n}
+            selected={p.selectedId === n.id}
+            isTrash={p.isTrash}
+            date={p.sort === "created" ? n.createdAt : n.updatedAt}
+            notebook={p.showNotebook ? p.notebookName(n.notebookId) : null}
+            query={p.search.trim().toLowerCase()}
+            press={press}
+            onPick={pick}
+          />
+        ))}
       </div>
       {p.onNewNote && (
         <button className="fab" onClick={p.onNewNote} aria-label="New note">

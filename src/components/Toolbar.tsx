@@ -35,9 +35,10 @@ interface Props {
   editor: Editor;
   onLink: () => void;
   onInsertUrl: () => void;
+  onInsertImage: () => void;
 }
 
-export default function Toolbar({ editor, onLink, onInsertUrl }: Props) {
+export default function Toolbar({ editor, onLink, onInsertUrl, onInsertImage }: Props) {
   const s = useEditorState({
     editor,
     selector: ({ editor: e }) => {
@@ -98,6 +99,9 @@ export default function Toolbar({ editor, onLink, onInsertUrl }: Props) {
           <>
             <MenuItem onSelect={() => { close(); c().toggleTaskList().run(); }}>
               <Icon name="checklist" size={16} /> Checklist
+            </MenuItem>
+            <MenuItem onSelect={() => { close(); onInsertImage(); }}>
+              <Icon name="image" size={16} /> Picture
             </MenuItem>
             <MenuItem onSelect={() => { close(); onInsertUrl(); }}>
               <Icon name="globe" size={16} /> Link preview / YouTube / Spotify

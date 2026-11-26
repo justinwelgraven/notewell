@@ -109,6 +109,20 @@ export function useLongPress(onMenu: (id: string, at: { x: number; y: number } |
   const timer = useRef<number | undefined>(undefined);
   const start = useRef<{ x: number; y: number } | null>(null);
   const fired = useRef(false);
+  const menuRef = useRef(onMenu);
+  menuRef.current = onMenu;
+  // The same object every render, so memoized list cards that receive it don't redraw.
+  const stable = useRef<ReturnType<typeof makeLongPress> | null>(null);
+  stable.current ??= makeLongPress(timer, start, fired, (id, at) => menuRef.current(id, at));
+  return stable.current;
+}
+
+function makeLongPress(
+  timer: { current: number | undefined },
+  start: { current: { x: number; y: number } | null },
+  fired: { current: boolean },
+  onMenu: (id: string, at: { x: number; y: number } | null) => void,
+) {
   const cancel = () => {
     window.clearTimeout(timer.current);
     start.current = null;

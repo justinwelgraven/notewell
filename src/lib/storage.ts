@@ -1,5 +1,5 @@
-import type { AppData } from "../types";
-import { idbGet, idbSet } from "./idb";
+import type { AppData, Note } from "../types";
+import { idbBatch, idbDelete, idbGet, idbGetAll } from "./idb";
 
 /** True when running inside the Tauri desktop shell (false in a plain browser during development). */
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -11,20 +11,7 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
   return core.invoke<T>(cmd, args);
 }
 
-export async function loadData(): Promise<AppData | null> {
-  let raw: string | null | undefined;
-  if (isTauri) raw = await invoke<string | null>("load_data");
-  else {
-    // Web: IndexedDB (older test builds used localStorage; move that over once).
-    raw = await idbGet<string>(LS_KEY);
-    if (!raw && localStorage.getItem(LS_KEY)) {
-      raw = localStorage.getItem(LS_KEY);
-      await idbSet(LS_KEY, raw);
-      localStorage.removeItem(LS_KEY);
-    }
-    // Ask the browser not to clear our data when space runs low.
-    navigator.storage?.persist?.().catch(() => {});
-  }
+function parse(raw: string | null | undefined): AppData | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as AppData;
@@ -34,10 +21,84 @@ export async function loadData(): Promise<AppData | null> {
   }
 }
 
+/**
+ * Web: each note is its own IndexedDB entry ("notes" store) and the rest of the app data sits under
+ * META_KEY, so a save only writes the notes that actually changed (compared by object identity:
+ * unchanged notes keep the same object in React state).
+ */
+const META_KEY = "notewell-meta";
+let savedNotes = new Map<string, Note>();
+
+async function loadWeb(): Promise<AppData | null> {
+  navigator.storage?.persist?.().catch(() => {}); // ask the browser not to clear our data when space runs low
+  const meta = await idbGet<Omit<AppData, "notes">>(META_KEY);
+  if (meta) {
+    const notes = await idbGetAll<Note>("notes");
+    savedNotes = new Map(notes.map((n) => [n.id, n]));
+    return { ...meta, notes } as AppData;
+  }
+  // Older versions: everything in one entry (or in localStorage before that). Move it over once.
+  const old = parse((await idbGet<string>(LS_KEY)) ?? localStorage.getItem(LS_KEY));
+  if (old) {
+    await saveWeb(old);
+    await idbDelete(LS_KEY);
+    localStorage.removeItem(LS_KEY);
+  }
+  return old;
+}
+
+async function saveWeb(data: AppData): Promise<void> {
+  const ops: Parameters<typeof idbBatch>[0] = [];
+  const ids = new Set<string>();
+  for (const n of data.notes) {
+    ids.add(n.id);
+    if (savedNotes.get(n.id) !== n) ops.push({ store: "notes", key: n.id, value: n });
+  }
+  for (const id of savedNotes.keys()) if (!ids.has(id)) ops.push({ store: "notes", key: id, del: true });
+  const { notes: _omit, ...meta } = data;
+  ops.push({ store: "kv", key: META_KEY, value: meta });
+  await idbBatch(ops);
+  savedNotes = new Map(data.notes.map((n) => [n.id, n]));
+}
+
+export async function loadData(): Promise<AppData | null> {
+  if (!isTauri) return loadWeb();
+  return parse(await invoke<string | null>("load_data"));
+}
+
 export async function saveData(data: AppData): Promise<void> {
-  const raw = JSON.stringify(data);
-  if (isTauri) await invoke("save_data", { data: raw });
-  else await idbSet(LS_KEY, raw);
+  if (isTauri) await invoke("save_data", { data: JSON.stringify(data) });
+  else await saveWeb(data);
+}
+
+/** Saves a file the user asked for (export / backup). Desktop: Downloads folder, shown in Explorer/Finder.
+ *  Web/iPhone: the share sheet (Save to Files, AirDrop, …) or a normal download. */
+export async function saveFile(name: string, content: string, type: string): Promise<string | null> {
+  if (isTauri) {
+    const path = await invoke<string>("save_export", { name, contents: content });
+    const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+    await revealItemInDir(path).catch(() => {});
+    return path;
+  }
+  const file = new File([content], name, { type });
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (matchMedia("(pointer: coarse)").matches && nav.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: name });
+      return null;
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return null;
+    }
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return null;
 }
 
 export interface FetchedPage {

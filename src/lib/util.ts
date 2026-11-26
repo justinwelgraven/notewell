@@ -1,6 +1,9 @@
 import type { JSONContent } from "@tiptap/core";
 import type { AppData } from "../types";
 
+/** Note-list thumbnails of pictures in notes look like "nwimg:<id>" (see lib/images.ts). */
+const IMAGE_THUMB_PREFIX = "nwimg:";
+
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
@@ -46,6 +49,7 @@ export function findThumb(node: JSONContent | null | undefined): string | null {
   if (!node) return null;
   if (node.type === "linkPreview" && node.attrs?.image) return node.attrs.image;
   if (node.type === "embed" && node.attrs?.thumb) return node.attrs.thumb;
+  if (node.type === "noteImage" && node.attrs?.id) return IMAGE_THUMB_PREFIX + node.attrs.id;
   for (const c of node.content ?? []) {
     const t = findThumb(c);
     if (t) return t;

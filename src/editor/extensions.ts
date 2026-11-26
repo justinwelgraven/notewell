@@ -9,6 +9,8 @@ import { Embed } from "./Embed";
 import { SmartPaste } from "./SmartPaste";
 import { Hashtags } from "./Hashtags";
 import { EvernoteShortcuts } from "./Shortcuts";
+import { NoteImage } from "./NoteImage";
+import { SearchHighlight } from "./SearchHighlight";
 
 export const editorExtensions = [
   StarterKit.configure({
@@ -23,7 +25,9 @@ export const editorExtensions = [
   Placeholder.configure({ placeholder: "Start writing…" }),
   LinkPreview,
   Embed,
+  NoteImage,
   SmartPaste,
+  SearchHighlight,
   Hashtags,
   EvernoteShortcuts,
 ];

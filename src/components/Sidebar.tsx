@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AppData, View } from "../types";
 import { isMac, kbd, QUICK_NOTE_KEYS } from "../lib/keys";
 import { Icon } from "./Icon";
@@ -24,6 +24,7 @@ interface Props {
   width?: number;
   onQuickNote?: () => void;
   sync?: SyncUi;
+  backup: BackupUi;
 }
 
 const THEMES: { value: Theme; label: string; colors: [string, string] }[] = [
@@ -124,7 +125,54 @@ function DropboxSection({ sync }: { sync: SyncUi }) {
   );
 }
 
-function SettingsPanel({ onQuickNote, sync }: { onQuickNote?: () => void; sync?: SyncUi }) {
+export interface BackupUi {
+  exportBackup: () => void;
+  exportMarkdown: () => void;
+  restore: (file: File) => void;
+}
+
+function BackupSection({ backup }: { backup: BackupUi }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <div className="menu-heading">Backup &amp; export</div>
+      <MenuItem onSelect={backup.exportBackup}>
+        <span className="menu-check"><Icon name="download" size={14} /></span>
+        <span className="menu-toggle">
+          Back up all notes
+          <small>One file with every note and picture</small>
+        </span>
+      </MenuItem>
+      <MenuItem onSelect={backup.exportMarkdown}>
+        <span className="menu-check"><Icon name="note" size={14} /></span>
+        <span className="menu-toggle">
+          Export as text (Markdown)
+          <small>Readable in any app</small>
+        </span>
+      </MenuItem>
+      <MenuItem onSelect={() => fileRef.current?.click()}>
+        <span className="menu-check"><Icon name="upload" size={14} /></span>
+        <span className="menu-toggle">
+          Restore from backup…
+          <small>Adds missing notes; never deletes any</small>
+        </span>
+      </MenuItem>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) backup.restore(f);
+        }}
+      />
+    </>
+  );
+}
+
+function SettingsPanel({ onQuickNote, sync, backup }: { onQuickNote?: () => void; sync?: SyncUi; backup: BackupUi }) {
   const prefs = usePrefs();
   return (
     <div className="settings-panel">
@@ -151,6 +199,8 @@ function SettingsPanel({ onQuickNote, sync }: { onQuickNote?: () => void; sync?:
           </button>
         ))}
       </div>
+      <div className="menu-sep" />
+      <BackupSection backup={backup} />
       <div className="menu-sep" />
       <MenuItem onSelect={() => window.dispatchEvent(new Event("notewell:shortcuts"))} shortcut={kbd("Ctrl+/")}>
         <span className="menu-check"><Icon name="more" size={14} /></span> Keyboard shortcuts
@@ -206,7 +256,7 @@ export default function Sidebar(p: Props) {
           triggerClassName="sb-account-btn"
           title="Settings"
         >
-          {() => <SettingsPanel onQuickNote={p.onQuickNote} sync={p.sync} />}
+          {() => <SettingsPanel onQuickNote={p.onQuickNote} sync={p.sync} backup={p.backup} />}
         </Dropdown>
       </div>
 

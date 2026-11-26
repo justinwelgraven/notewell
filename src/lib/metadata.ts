@@ -1,4 +1,4 @@
-import { fetchPage } from "./storage";
+import { fetchPage, isTauri } from "./storage";
 import { hostname } from "./embeds";
 
 export interface LinkMeta {
@@ -37,7 +37,34 @@ function clip(s: string | null, n: number): string | null {
   return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t || null;
 }
 
+/**
+ * Web/iPhone: a browser page may not read other websites, so the preview comes from Microlink
+ * (a public link-preview service; it sees the link you paste, nothing else). Free, no account needed.
+ */
+async function loadViaService(url: string): Promise<LinkMeta> {
+  const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
+  const json = await res.json();
+  if (json.status !== "success" || !json.data) throw new Error(json.message ?? "No preview");
+  const d = json.data as {
+    title?: string;
+    description?: string;
+    publisher?: string;
+    url?: string;
+    image?: { url?: string } | null;
+    logo?: { url?: string } | null;
+  };
+  const final = d.url ?? url;
+  return {
+    title: clip(d.title ?? null, 160),
+    description: clip(d.description ?? null, 280),
+    image: abs(d.image?.url, final),
+    siteName: clip(d.publisher ?? hostname(final), 60),
+    favicon: abs(d.logo?.url, final),
+  };
+}
+
 async function load(url: string): Promise<LinkMeta> {
+  if (!isTauri) return loadViaService(url);
   const { html, final_url } = await fetchPage(url);
   const doc = new DOMParser().parseFromString(html, "text/html");
 

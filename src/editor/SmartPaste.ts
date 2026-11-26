@@ -1,6 +1,8 @@
 import { Extension, type Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { isUrl, parseEmbed } from "../lib/embeds";
+import { imageFiles } from "../lib/images";
+import { insertImages } from "./NoteImage";
 
 /** Inserts a URL as a player (YouTube/Spotify) or a link preview card. */
 export function insertUrlBlock(editor: Editor, url: string) {
@@ -47,6 +49,12 @@ export const SmartPaste = Extension.create({
             return false;
           },
           handlePaste(view, event) {
+            // Pictures (screenshots, photos copied from another app) become note images.
+            const pics = imageFiles(event.clipboardData?.items);
+            if (pics.length && !editor.isActive("codeBlock")) {
+              void insertImages(editor, pics);
+              return true;
+            }
             const text = event.clipboardData?.getData("text/plain")?.trim();
             if (!text || !isUrl(text) || shiftHeld) return false;
             if (editor.isActive("codeBlock")) return false;
@@ -55,6 +63,17 @@ export const SmartPaste = Extension.create({
               return true;
             }
             insertUrlBlock(editor, text);
+            return true;
+          },
+          handleDrop(view, event) {
+            const pics = imageFiles((event as DragEvent).dataTransfer?.files);
+            if (!pics.length) return false;
+            event.preventDefault();
+            const at = view.posAtCoords({ left: (event as DragEvent).clientX, top: (event as DragEvent).clientY });
+            // Insert between blocks: at the end of the block that was dropped on.
+            const $pos = at ? view.state.doc.resolve(at.pos) : null;
+            const pos = $pos && $pos.depth > 0 ? $pos.after(1) : undefined;
+            void insertImages(editor, pics, pos);
             return true;
           },
         },

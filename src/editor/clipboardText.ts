@@ -49,6 +49,8 @@ function block(node: PMNode, wa: boolean): string[] {
     case "embed":
       // Just the URL: WhatsApp and most chat apps build their own preview from it.
       return [node.attrs.url ?? ""];
+    case "noteImage":
+      return []; // pictures can't go into plain text
     default:
       return node.isTextblock ? inline(node.content, wa).split("\n") : blocks(node.content, wa);
   }

@@ -7,7 +7,13 @@ Built with [Tauri 2](https://tauri.app) (native shell) + React + [TipTap](https:
 - Sidebar with Shortcuts, Notes, Notebooks, Tags and Trash; search across titles, text and tags
 - Formatting: headers, fonts, sizes, colours, bold/italic/underline/strike, highlight, lists, checklists, links, alignment, quotes, code, dividers
 - Spell check via the operating system (right-click a misspelled word for suggestions)
-- Paste a website link → preview card (title, description, image)
+- Pictures: paste a screenshot/photo, drag one in, or Insert → Picture (iPhone: the picture button above the keyboard). Large photos are shrunk; pictures sync through Dropbox (`/images/`)
+- Pin notes to the top of the list (right-click / long-press a note, or the note's ⋯ menu)
+- Search words are highlighted in the note list and in the open note
+- Version history (note's ⋯ menu, with Dropbox): see and restore earlier versions of a note
+- Backup & export (Settings): one backup file with every note and picture, a readable Markdown export, and "Restore from backup" (adds missing notes, never deletes)
+- Trash empties itself after 30 days
+- Paste a website link → preview card (title, description, image). On the web/iPhone version the preview comes from Microlink (a public link-preview service, which sees the pasted link)
 - Paste a YouTube or Spotify link → embedded player
 - Ctrl+Shift+V pastes a link as plain text instead
 - Light, dark or system theme (click "Notewell" at the top of the sidebar)
@@ -64,7 +70,8 @@ Press **Ctrl+/** (⌘/ on Mac) in the app for the full list. Highlights:
 - Windows: `%APPDATA%\com.notewell.desktop\notewell-data.json`
 - Mac: `~/Library/Application Support/com.notewell.desktop/notewell-data.json`
 
-(plus a `.bak` backup of the previous save). The Dropbox sign-in is kept in Windows Credential Manager / the macOS Keychain.
+(plus a `.bak` backup of the previous save). Pictures are kept in the app's browser storage (IndexedDB) and in Dropbox.
+Web/iPhone: everything in the browser's IndexedDB (one entry per note). The Dropbox sign-in is kept in Windows Credential Manager / the macOS Keychain.
 
 ## This project folder lives in Dropbox
 `node_modules` and `dist` are marked as **ignored by Dropbox** (done automatically by `npm install`),

@@ -10,6 +10,7 @@
 import type { AppData, Note } from "../types";
 import { uid } from "../lib/util";
 import { DropboxError, download, longpoll, rpc, upload } from "./dropbox";
+import { imagePath, localImage, markImageUploaded, pendingImageUploads, setRemoteImageLoader } from "../lib/images";
 import {
   NOTEBOOKS_PATH,
   applyRemote,
@@ -34,6 +35,40 @@ export interface SyncStatus {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Runs `fn` over `items`, at most `limit` at a time (Dropbox is much faster with a few in parallel). */
+async function pool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  let failed: unknown = null;
+  const worker = async () => {
+    while (next < items.length && failed === null) {
+      const item = items[next++];
+      try {
+        await fn(item);
+      } catch (e) {
+        failed ??= e;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  if (failed !== null) throw failed;
+}
+const PARALLEL = 6;
+
+/** Earlier versions of a note that Dropbox keeps (newest first). */
+export async function noteVersions(id: string): Promise<{ rev: string; at: string }[]> {
+  const r = await rpc<{ entries: { rev: string; server_modified: string }[] }>("files/list_revisions", {
+    path: notePath(id),
+    mode: { ".tag": "path" },
+    limit: 40,
+  });
+  return r.entries.map((e) => ({ rev: e.rev, at: e.server_modified }));
+}
+
+export async function noteVersion(rev: string): Promise<Note> {
+  const { text } = await download(`rev:${rev}`);
+  return JSON.parse(text) as Note;
+}
 /** Lets React apply a state update so getData() returns the merged result. */
 const settle = () => sleep(60);
 
@@ -59,6 +94,10 @@ export class SyncEngine {
   start() {
     if (this.running) return;
     this.running = true;
+    // Pictures not on this device yet are downloaded when a note shows them.
+    setRemoteImageLoader(async (id) => (await download(imagePath(id))).text);
+    this.onImagesChanged = () => this.schedulePush();
+    window.addEventListener("notewell:images-changed", this.onImagesChanged);
     this.enqueue(() => this.fullSync());
     void this.liveLoop();
   }
@@ -66,15 +105,19 @@ export class SyncEngine {
   stop() {
     this.running = false;
     window.clearTimeout(this.pushTimer);
+    setRemoteImageLoader(null);
+    window.removeEventListener("notewell:images-changed", this.onImagesChanged);
   }
+
+  private onImagesChanged = () => {};
 
   /** Call after any local change; uploads once typing pauses. */
   schedulePush() {
     if (!this.running) return;
     window.clearTimeout(this.pushTimer);
-    this.pushTimer = window.setTimeout(() => {
+    this.pushTimer = window.setTimeout(async () => {
       const d = this.getData();
-      if (d && (pendingNotes(d).length || metaOf(d).deleted.length || notebooksPending(d))) {
+      if (d && (pendingNotes(d).length || metaOf(d).deleted.length || notebooksPending(d) || (await pendingImageUploads()).length)) {
         this.enqueue(() => this.push());
       }
     }, 1500);
@@ -145,28 +188,35 @@ export class SyncEngine {
     const meta = metaOf(this.getData()!);
     const changes: RemoteChange[] = [];
 
-    for (const e of entries) {
-      if (e[".tag"] === "file") {
-        const id = noteIdFromPath(e.path_display);
-        if (id) {
-          if (meta.notes[id]?.rev === e.rev) continue; // our own upload, or already have it
-          try {
-            const { text, meta: fm } = await download(e.path_display);
-            const note = JSON.parse(text) as Note;
-            if (note && note.id === id) changes.push({ kind: "note", id, rev: fm.rev ?? e.rev!, note });
-          } catch (err) {
-            if (err instanceof DropboxError && err.is("path/not_found")) continue; // deleted meanwhile
-            throw err;
+    // Download changed notes a few at a time; keep the changes in Dropbox's order.
+    const slots: (RemoteChange | null)[] = entries.map(() => null);
+    await pool(
+      entries.map((e, i) => ({ e, i })),
+      PARALLEL,
+      async ({ e, i }) => {
+        if (e[".tag"] === "file") {
+          const id = noteIdFromPath(e.path_display);
+          if (id) {
+            if (meta.notes[id]?.rev === e.rev) return; // our own upload, or already have it
+            try {
+              const { text, meta: fm } = await download(e.path_display);
+              const note = JSON.parse(text) as Note;
+              if (note && note.id === id) slots[i] = { kind: "note", id, rev: fm.rev ?? e.rev!, note };
+            } catch (err) {
+              if (err instanceof DropboxError && err.is("path/not_found")) return; // deleted meanwhile
+              throw err;
+            }
+          } else if (e.path_lower === NOTEBOOKS_PATH && e.rev !== meta.notebooksRev) {
+            const { text, meta: fm } = await download(NOTEBOOKS_PATH);
+            slots[i] = { kind: "notebooks", rev: fm.rev ?? e.rev!, file: JSON.parse(text) as NotebooksFile };
           }
-        } else if (e.path_lower === NOTEBOOKS_PATH && e.rev !== meta.notebooksRev) {
-          const { text, meta: fm } = await download(NOTEBOOKS_PATH);
-          changes.push({ kind: "notebooks", rev: fm.rev ?? e.rev!, file: JSON.parse(text) as NotebooksFile });
+        } else if (e[".tag"] === "deleted") {
+          const id = noteIdFromPath(e.path_display);
+          if (id && meta.notes[id]) slots[i] = { kind: "delete", id };
         }
-      } else if (e[".tag"] === "deleted") {
-        const id = noteIdFromPath(e.path_display);
-        if (id && meta.notes[id]) changes.push({ kind: "delete", id });
-      }
-    }
+      },
+    );
+    changes.push(...slots.filter((c): c is RemoteChange => !!c));
 
     let touched: string[] = [];
     this.update((d) => {
@@ -184,16 +234,29 @@ export class SyncEngine {
     const meta = metaOf(d);
     let needPull = false;
 
-    for (const id of meta.deleted) {
+    // Pictures first, so a note never arrives on another device before its pictures.
+    await pool(await pendingImageUploads(), PARALLEL, async (id) => {
+      const data = await localImage(id);
+      if (data) {
+        try {
+          await upload(imagePath(id), data, null);
+        } catch (e) {
+          if (!(e instanceof DropboxError && e.is("path/conflict"))) throw e; // already there
+        }
+      }
+      await markImageUploaded(id);
+    });
+
+    await pool(meta.deleted, PARALLEL, async (id) => {
       try {
         await rpc("files/delete_v2", { path: notePath(id) });
       } catch (e) {
         if (!(e instanceof DropboxError && e.is("path_lookup/not_found"))) throw e;
       }
       this.update((x) => markRemoteDeleted(x, id));
-    }
+    });
 
-    for (const note of pendingNotes(d)) {
+    await pool(pendingNotes(d), PARALLEL, async (note) => {
       try {
         const fm = await upload(notePath(note.id), JSON.stringify(note), meta.notes[note.id]?.rev ?? null);
         this.update((x) => markUploaded(x, note.id, fm.rev, note.updatedAt));
@@ -201,7 +264,7 @@ export class SyncEngine {
         if (e instanceof DropboxError && e.is("path/conflict")) needPull = true;
         else throw e;
       }
-    }
+    });
 
     if (notebooksPending(d)) {
       const file = notebooksFileOf(d);

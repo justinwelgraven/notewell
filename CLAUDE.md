@@ -30,6 +30,16 @@ User-facing docs, setup and build steps: **README.md**.
 - `npm run build` / `build:web` go through `scripts/vite-build.mjs`, which retries when Dropbox/antivirus briefly locks the output folder.
 - Closing the main window hides it to the tray/menu bar; real quit goes through `quit_app` so the page saves first.
 - Project folder lives in Dropbox: `node_modules`, `dist` are marked Dropbox-ignored by `scripts/dropbox-ignore.mjs` (preinstall). Rust build output goes outside the project via `scripts/tauri.mjs` (`npm run tauri ...`). Never build into the project folder.
+- Web storage: IndexedDB stores `kv` (app data minus notes, key `notewell-meta`), `notes` (one entry per note; a save writes only
+  notes whose object identity changed) and `images`. Older single-blob data (`notewell-data`) is migrated on load.
+- Pictures (`src/lib/images.ts`, node `noteImage` in `src/editor/NoteImage.tsx`): the note holds only an id; the data URL lives in
+  IndexedDB (also on desktop) and in Dropbox as `/images/<id>.dataurl` (text, because the Dropbox bridge only carries strings).
+  Uploaded before notes; downloaded lazily when shown. List thumbnail = `nwimg:<id>`.
+- Editor hands changes to App at most every 250 ms (`flush` in EditorPane; also on blur/hide/unmount and `notewell:flush-editor`).
+  Outside changes (sync, quick note, restore) bump `rev` → content replaced in place, keeping cursor/keyboard (no remount).
+- Star/pin change `updatedAt` by +1 ms so sync uploads them without reordering the list.
+- Sync downloads/uploads 6 at a time (`pool` in engine.ts). Version history = Dropbox `files/list_revisions` + download `rev:<rev>`.
+- Web link previews: Microlink API (desktop fetches pages natively).
 - Window keystroke tests: don't send keystrokes to the desktop app with SendKeys — they can land in the user's active window. Use the browser preview for UI/key tests.
 
 ## Releasing
