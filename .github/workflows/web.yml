@@ -1,6 +1,7 @@
 # Publishes the web version (iPhone) to GitHub Pages on every push to main:
 #   https://justinwelgraven.github.io/notewell/
-# One-time setup: repository Settings → Pages → Source: "GitHub Actions".
+# One-time setup: repository Settings → Pages → Source: "GitHub Actions" (done).
+# To re-publish without code changes: Actions tab → "Publish web version" → Run workflow.
 name: Publish web version
 
 on:
