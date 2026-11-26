@@ -67,6 +67,8 @@ User-facing docs, setup and build steps: **README.md**.
   vh/lvh 951, screen 466×678, safe top 82 / bottom 34. Tried and **didn't work**: sizing to lvh (content clipped), auto-reload (still
   stale + flashing), remembered heights, status bar `black` (the Duo then put the app's top under the status-bar icons with inset 0).
   Now: `black-translucent` + safe-area insets + `.status-scrim` (dark strip behind the status bar). Fold/unfold or reopening resets it.
+  Also tried (2026-11-26) and **didn't work**: rewriting the viewport meta after rotating to make WebKit recalculate (Justin:
+  "still there"). Conclusion: an iOS bug in the Home Screen web view; not fixable from the page — don't retry these.
 - iPhone Duo **folded upright**: the status bar is a vertical strip on the right (~75 pt wide, ~75–160 pt from the top) and iOS
   reports no inset. Detected as "Home Screen app + upright + touch + safe top 0" → `html.side-status` (viewport.ts); CSS gives
   the note list a clear right column and the note's topbar/toolbar right padding. (A tall header instead = big gap on top: rejected.)
