@@ -50,6 +50,15 @@ export async function idbGetAll<T>(store: Store): Promise<T[]> {
   });
 }
 
+export async function idbKeys(store: Store): Promise<string[]> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store, "readonly").objectStore(store).getAllKeys();
+    req.onsuccess = () => resolve(req.result.map(String));
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export async function idbSet(key: string, value: unknown, store: Store = "kv"): Promise<void> {
   const db = await open();
   const tx = db.transaction(store, "readwrite");

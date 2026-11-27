@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import QuickNote from "./components/QuickNote";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { isQuickWindow, isTauri } from "./lib/storage";
 import { trackVisibleViewport } from "./lib/viewport";
 
@@ -16,5 +17,7 @@ import "./lib/prefs"; // applies light/dark theme
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>{isQuickWindow() ? <QuickNote /> : <App />}</StrictMode>,
+  <StrictMode>
+    <ErrorBoundary scope="app">{isQuickWindow() ? <QuickNote /> : <App />}</ErrorBoundary>
+  </StrictMode>,
 );

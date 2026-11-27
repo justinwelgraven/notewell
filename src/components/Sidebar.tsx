@@ -135,6 +135,8 @@ export interface BackupUi {
   exportBackup: () => void;
   exportMarkdown: () => void;
   restore: (file: File) => void;
+  /** Desktop: opens the folder with the automatic daily backups. */
+  showDailyBackups?: () => void;
 }
 
 function BackupSection({ backup }: { backup: BackupUi }) {
@@ -156,6 +158,15 @@ function BackupSection({ backup }: { backup: BackupUi }) {
           <small>Readable in any app</small>
         </span>
       </MenuItem>
+      {backup.showDailyBackups && (
+        <MenuItem onSelect={backup.showDailyBackups}>
+          <span className="menu-check"><Icon name="history" size={14} /></span>
+          <span className="menu-toggle">
+            Show daily backups
+            <small>Automatic copy of your notes each day, last 14 days</small>
+          </span>
+        </MenuItem>
+      )}
       <MenuItem onSelect={() => fileRef.current?.click()}>
         <span className="menu-check"><Icon name="upload" size={14} /></span>
         <span className="menu-toggle">

@@ -35,6 +35,7 @@ import { saveFile } from "./lib/storage";
 import { makeBackup, makeMarkdown, restoreBackup } from "./lib/backup";
 import type { BackupUi } from "./components/Sidebar";
 import HistoryDialog from "./components/HistoryDialog";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { linkedNoteIds, setCurrentNoteForLinks, setNoteLinkSource } from "./editor/NoteLink";
 import { deleteTag, removeStack, renameStack, renameTag, setNotebookStack, stacksOf } from "./lib/organize";
 
@@ -430,6 +431,18 @@ export default function App() {
         setToast({ text: `Export failed: ${String(e).slice(0, 120)}` });
       }
     },
+    showDailyBackups: isTauri
+      ? async () => {
+          try {
+            const { invoke } = await import("@tauri-apps/api/core");
+            const dir = await invoke<string>("backups_folder");
+            const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+            await revealItemInDir(dir);
+          } catch (e) {
+            setToast({ text: `Couldn't open the backups folder: ${String(e).slice(0, 100)}` });
+          }
+        }
+      : undefined,
     restore: async (file) => {
       try {
         await saveNow();
@@ -734,38 +747,40 @@ export default function App() {
         <Resizer label="Resize note list" width={listWidth} min={240} max={640} defaultWidth={LIST_DEFAULT} onChange={setListWidth} />
       )}
       {!showEditor ? null : selected ? (
-        <EditorPane
-          key={selected.id}
-          rev={quickRev[selected.id] ?? 0}
-          backlinks={backlinks}
-          onOpenNote={openNote}
-          search={search}
-          onToggleStar={() => toggleFlag(selected.id, "starred")}
-          onTogglePin={() => toggleFlag(selected.id, "pinned")}
-          onHistory={dbx.connected ? () => setHistoryFor(selected.id) : undefined}
-          onBack={narrow ? () => setMobilePane("list") : undefined}
-          note={selected}
-          notebooks={[...data.notebooks].sort((a, b) => a.name.localeCompare(b.name))}
-          allTags={allTags}
-          onChange={(patch) => updateNote(selected.id, patch)}
-          onTrash={() => {
-            const id = selected.id;
-            trashNote(id);
-            setMobilePane("list");
-            setToast({ text: "Note moved to Trash", undo: () => { restoreNote(id); setSelectedId(id); } });
-          }}
-          onOpenTag={(tag) => {
-            setFocusMode(false);
-            setSearch("");
-            setView({ kind: "tag", tag });
-          }}
-          onRestore={() => restoreNote(selected.id)}
-          onDeleteForever={() => setDialog({ kind: "deleteNote", id: selected.id })}
-          onDuplicate={() => duplicateNote(selected.id)}
-          focusMode={focusMode}
-          onToggleFocus={() => setFocusMode((f) => !f)}
-          saveState={saveState}
-        />
+        <ErrorBoundary scope="note" resetKey={selected.id}>
+          <EditorPane
+            key={selected.id}
+            rev={quickRev[selected.id] ?? 0}
+            backlinks={backlinks}
+            onOpenNote={openNote}
+            search={search}
+            onToggleStar={() => toggleFlag(selected.id, "starred")}
+            onTogglePin={() => toggleFlag(selected.id, "pinned")}
+            onHistory={dbx.connected ? () => setHistoryFor(selected.id) : undefined}
+            onBack={narrow ? () => setMobilePane("list") : undefined}
+            note={selected}
+            notebooks={[...data.notebooks].sort((a, b) => a.name.localeCompare(b.name))}
+            allTags={allTags}
+            onChange={(patch) => updateNote(selected.id, patch)}
+            onTrash={() => {
+              const id = selected.id;
+              trashNote(id);
+              setMobilePane("list");
+              setToast({ text: "Note moved to Trash", undo: () => { restoreNote(id); setSelectedId(id); } });
+            }}
+            onOpenTag={(tag) => {
+              setFocusMode(false);
+              setSearch("");
+              setView({ kind: "tag", tag });
+            }}
+            onRestore={() => restoreNote(selected.id)}
+            onDeleteForever={() => setDialog({ kind: "deleteNote", id: selected.id })}
+            onDuplicate={() => duplicateNote(selected.id)}
+            focusMode={focusMode}
+            onToggleFocus={() => setFocusMode((f) => !f)}
+            saveState={saveState}
+          />
+        </ErrorBoundary>
       ) : (
         <section className="editor-pane editor-empty">
           <Icon name="note" size={56} />

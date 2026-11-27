@@ -149,19 +149,30 @@ export function trackVisibleViewport() {
       if (keyboard && changed) requestAnimationFrame(keepCaretVisible);
       if (root.style.getPropertyValue("--app-top") !== t) root.style.setProperty("--app-top", t);
       if (root.classList.contains("keyboard-open") !== keyboard) root.classList.toggle("keyboard-open", keyboard);
-      const side = sideStatusStrip(cssLength("env(safe-area-inset-top, 0px)", "paddingTop") ?? 0);
-      if (root.classList.contains("side-status") !== side) root.classList.toggle("side-status", side);
       // Never let the page itself stay scrolled: everything scrolls inside the app.
       if (!keyboard && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
     });
   };
 
+  // Where the status bar sits (iPhone Duo folded upright: on the side). Measuring it makes Safari
+  // recalculate the layout, so it's done only when that can change — turning/folding the phone,
+  // reopening the app, a window resize — never on every scroll or keystroke.
+  const checkSideStatus = () => {
+    const side = sideStatusStrip(cssLength("env(safe-area-inset-top, 0px)", "paddingTop") ?? 0);
+    if (root.classList.contains("side-status") !== side) root.classList.toggle("side-status", side);
+  };
+
   vv?.addEventListener("resize", update);
   vv?.addEventListener("scroll", update);
-  window.addEventListener("resize", update);
+  window.addEventListener("resize", () => {
+    update();
+    checkSideStatus();
+  });
   // iOS reports the final size a little after rotating / folding: measure again shortly after.
   const settle = () => {
     update();
+    checkSideStatus();
+    setTimeout(checkSideStatus, 700);
     setTimeout(update, 250);
     setTimeout(update, 700);
     setTimeout(update, 1500);
@@ -170,11 +181,18 @@ export function trackVisibleViewport() {
   screen.orientation?.addEventListener?.("change", settle);
   window.addEventListener("pageshow", settle);
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && settle());
-  document.addEventListener("focusin", settle);
-  document.addEventListener("focusout", settle);
+  // Typing in / leaving a field: only the size is re-checked (cheap), not the status bar.
+  const settleSize = () => {
+    update();
+    setTimeout(update, 250);
+    setTimeout(update, 700);
+  };
+  document.addEventListener("focusin", settleSize);
+  document.addEventListener("focusout", settleSize);
   // Safety net: re-check every second while visible (only writes when something changed).
   setInterval(() => document.visibilityState === "visible" && update(), 1000);
   update();
+  checkSideStatus();
 }
 
 export type LayoutMode = "phone" | "tablet" | "wide";

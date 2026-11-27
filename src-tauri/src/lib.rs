@@ -1,4 +1,5 @@
 mod dropbox;
+mod files;
 mod spell;
 
 use std::{
@@ -48,16 +49,19 @@ fn load_data(app: AppHandle) -> Result<Option<String>, String> {
     fs::read_to_string(path).map(Some).map_err(|e| e.to_string())
 }
 
-/// Writes the notes JSON atomically (temp file + rename) and keeps one backup.
+/// Writes the notes JSON atomically (temp file + rename), keeps the previous version (.bak) and a
+/// daily backup of the last 14 days (files.rs).
 #[tauri::command]
 fn save_data(app: AppHandle, data: String) -> Result<(), String> {
     let path = data_path(&app)?;
     let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, data).map_err(|e| e.to_string())?;
+    fs::write(&tmp, &data).map_err(|e| e.to_string())?;
     if path.exists() {
         let _ = fs::copy(&path, path.with_extension("json.bak"));
     }
-    fs::rename(&tmp, &path).map_err(|e| e.to_string())
+    fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    files::daily_backup(&app, &data);
+    Ok(())
 }
 
 /// Spell check in English and Dutch (Windows). WebView2 checks spelling with Windows' own spell
@@ -417,6 +421,9 @@ pub fn run() {
             load_data,
             save_data,
             save_export,
+            files::image_file_read,
+            files::image_file_write,
+            files::backups_folder,
             spell::spell_languages,
             spell::spell_check,
             spell::spell_suggest,

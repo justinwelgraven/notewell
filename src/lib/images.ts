@@ -1,12 +1,14 @@
 /**
  * Pictures in notes.
  *
- * A note only holds an image *reference* (node "noteImage" with attrs.id); the picture itself lives in
- * IndexedDB ("images" store, as a data URL) on every device and in Dropbox at /images/<id>.dataurl,
+ * A note only holds an image *reference* (node "noteImage" with attrs.id); the picture itself lives on
+ * the device (desktop: files in the data folder, images/<id>.dataurl — see src-tauri/src/files.rs;
+ * web/iPhone: IndexedDB "images" store) and in Dropbox at /images/<id>.dataurl,
  * so notes stay small and fast to save/sync. Pictures are shrunk before storing (max 1800px).
  * Devices fetch a picture from Dropbox the first time a note shows it.
  */
-import { idbGet, idbSet } from "./idb";
+import { idbDelete, idbGet, idbKeys, idbSet } from "./idb";
+import { isTauri } from "./storage";
 import { uid } from "./util";
 
 const MAX_SIDE = 1800;
@@ -16,6 +18,72 @@ export const IMAGE_THUMB_PREFIX = "nwimg:";
 
 interface Stored {
   data: string;
+}
+
+// ---- Where pictures are kept on this device ----
+async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const core = await import("@tauri-apps/api/core");
+  return core.invoke<T>(cmd, args);
+}
+
+/**
+ * Desktop, once: pictures from older versions (kept in the web view's storage, which the system may
+ * clear) move to files. Each one is removed from the old place only after its file is written.
+ */
+let migrated: Promise<void> | null = null;
+function migrateToFiles(): Promise<void> {
+  migrated ??= (async () => {
+    try {
+      for (const id of await idbKeys("images")) {
+        const old = await idbGet<Stored>(id, "images");
+        if (old?.data) {
+          const exists = await invoke<string | null>("image_file_read", { name: `${id}.dataurl` });
+          if (!exists) await invoke("image_file_write", { name: `${id}.dataurl`, contents: old.data });
+        }
+        await idbDelete(id, "images");
+      }
+      const oldPending = await idbGet<string[]>(PENDING_KEY);
+      if (oldPending?.length) {
+        const now = await readPendingFile();
+        await writePendingFile([...new Set([...now, ...oldPending])]);
+      }
+      if (oldPending) await idbDelete(PENDING_KEY);
+    } catch (e) {
+      console.warn("Moving pictures to files:", e);
+    }
+  })();
+  return migrated;
+}
+
+async function readPendingFile(): Promise<string[]> {
+  const raw = await invoke<string | null>("image_file_read", { name: "pending.json" });
+  try {
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+const writePendingFile = (list: string[]) => invoke("image_file_write", { name: "pending.json", contents: JSON.stringify(list) });
+
+async function readStored(id: string): Promise<string | null> {
+  if (!isTauri) return (await idbGet<Stored>(id, "images"))?.data ?? null;
+  await migrateToFiles();
+  return invoke<string | null>("image_file_read", { name: `${id}.dataurl` });
+}
+async function writeStored(id: string, data: string): Promise<void> {
+  if (!isTauri) return idbSet(id, { data } satisfies Stored, "images");
+  await migrateToFiles();
+  await invoke("image_file_write", { name: `${id}.dataurl`, contents: data });
+}
+async function readPending(): Promise<string[]> {
+  if (!isTauri) return (await idbGet<string[]>(PENDING_KEY)) ?? [];
+  await migrateToFiles();
+  return readPendingFile();
+}
+async function writePending(list: string[]): Promise<void> {
+  if (!isTauri) return idbSet(PENDING_KEY, list);
+  await migrateToFiles();
+  await writePendingFile(list);
 }
 
 const memory = new Map<string, Promise<string>>();
@@ -70,10 +138,10 @@ export async function addImage(file: Blob): Promise<string> {
 }
 
 export async function addImageData(data: string, id = uid() + uid()): Promise<string> {
-  await idbSet(id, { data } satisfies Stored, "images");
+  await writeStored(id, data);
   memory.set(id, Promise.resolve(data));
-  const pending = (await idbGet<string[]>(PENDING_KEY)) ?? [];
-  if (!pending.includes(id)) await idbSet(PENDING_KEY, [...pending, id]);
+  const pending = await readPending();
+  if (!pending.includes(id)) await writePending([...pending, id]);
   window.dispatchEvent(new Event("notewell:images-changed"));
   return id;
 }
@@ -83,11 +151,11 @@ export function loadImage(id: string): Promise<string> {
   let p = memory.get(id);
   if (!p) {
     p = (async () => {
-      const local = await idbGet<Stored>(id, "images");
-      if (local) return local.data;
+      const local = await readStored(id);
+      if (local) return local;
       if (!remoteLoader) throw new Error("not-synced");
       const data = await remoteLoader(id);
-      await idbSet(id, { data } satisfies Stored, "images");
+      await writeStored(id, data);
       return data;
     })();
     memory.set(id, p);
@@ -98,16 +166,16 @@ export function loadImage(id: string): Promise<string> {
 
 /** Picture data if it's on this device (for backups); null otherwise. */
 export async function localImage(id: string): Promise<string | null> {
-  return (await idbGet<Stored>(id, "images"))?.data ?? null;
+  return readStored(id);
 }
 
 export async function pendingImageUploads(): Promise<string[]> {
-  return (await idbGet<string[]>(PENDING_KEY)) ?? [];
+  return readPending();
 }
 
 export async function markImageUploaded(id: string) {
-  const pending = (await idbGet<string[]>(PENDING_KEY)) ?? [];
-  await idbSet(PENDING_KEY, pending.filter((x) => x !== id));
+  const pending = await readPending();
+  await writePending(pending.filter((x) => x !== id));
 }
 
 /** All picture ids used in a note body. */

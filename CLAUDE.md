@@ -32,8 +32,9 @@ User-facing docs, setup and build steps: **README.md**.
 - Project folder lives in Dropbox: `node_modules`, `dist` are marked Dropbox-ignored by `scripts/dropbox-ignore.mjs` (preinstall). Rust build output goes outside the project via `scripts/tauri.mjs` (`npm run tauri ...`). Never build into the project folder.
 - Web storage: IndexedDB stores `kv` (app data minus notes, key `notewell-meta`), `notes` (one entry per note; a save writes only
   notes whose object identity changed) and `images`. Older single-blob data (`notewell-data`) is migrated on load.
-- Pictures (`src/lib/images.ts`, node `noteImage` in `src/editor/NoteImage.tsx`): the note holds only an id; the data URL lives in
-  IndexedDB (also on desktop) and in Dropbox as `/images/<id>.dataurl` (text, because the Dropbox bridge only carries strings).
+- Pictures (`src/lib/images.ts`, node `noteImage` in `src/editor/NoteImage.tsx`): the note holds only an id; the data URL lives
+  on the device (desktop: files `<app data>/images/<id>.dataurl` + `images/pending.json` via `src-tauri/src/files.rs`, moved once
+  from the old IndexedDB store; web: IndexedDB) and in Dropbox as `/images/<id>.dataurl` (text, because the Dropbox bridge only carries strings).
   Uploaded before notes; downloaded lazily when shown. List thumbnail = `nwimg:<id>`.
 - Editor hands changes to App at most every 250 ms (`flush` in EditorPane; also on blur/hide/unmount and `notewell:flush-editor`).
   Outside changes (sync, quick note, restore) bump `rev` → content replaced in place, keeping cursor/keyboard (no remount).
@@ -59,6 +60,11 @@ User-facing docs, setup and build steps: **README.md**.
   CAUTION: a test copy under another identifier still shares the Dropbox sign-in (keychain) and syncs — clean up test notes.
   Mac: `enable_mac_spellcheck` sets WebContinuousSpellCheckingEnabled + NSSpellChecker automaticallyIdentifiesLanguages;
   on Apple devices the note body has lang="" (`noteBodyAttributes`) so the language is detected per text.
+- Desktop daily backups: `files::daily_backup` after each save → `<app data>/backups/notewell-YYYY-MM-DD.json`, newest 14 kept;
+  Settings → "Show daily backups"; "Restore from backup" also accepts these plain data files.
+- Safety net: `components/ErrorBoundary.tsx` around the whole app (main.tsx) and around the open note (App.tsx).
+- Web: the side-status-bar check measures the page (forces layout), so it runs only on rotate/fold/resize/reopen, not on
+  scroll/typing (viewport.ts `checkSideStatus`).
 - Window keystroke tests: don't send keystrokes to the desktop app with SendKeys — they can land in the user's active window. Use the browser preview for UI/key tests.
 
 ## Releasing

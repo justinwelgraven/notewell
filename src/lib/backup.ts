@@ -54,7 +54,10 @@ export async function restoreBackup(d: AppData, text: string): Promise<{ data: A
   } catch {
     throw new Error("This file isn't a Notewell backup.");
   }
-  if (file?.app !== "notewell" || !Array.isArray(file.notes)) throw new Error("This file isn't a Notewell backup.");
+  // A daily backup (desktop, backups/notewell-YYYY-MM-DD.json) is the plain notes file: same notes and
+  // notebooks, no pictures (those stay in the data folder anyway).
+  const isDaily = file && (file as unknown as AppData).version === 1 && Array.isArray(file.notes) && Array.isArray(file.notebooks);
+  if ((file?.app !== "notewell" && !isDaily) || !Array.isArray(file.notes)) throw new Error("This file isn't a Notewell backup.");
   for (const [id, data] of Object.entries(file.images ?? {})) {
     if (!(await localImage(id))) await addImageData(data, id);
   }
